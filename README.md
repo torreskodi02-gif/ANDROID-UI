@@ -1,4 +1,4 @@
-# Merlin Launcher v1.0.0
+# Merlin Launcher v1.1.0
 
 A native Kotlin Android launcher built for Kodi's **Motorola One Action**
 (6.3" 1080×2520 21:9, 4 GB RAM, Exynos 9609, Android 11 — its last update).
@@ -13,14 +13,33 @@ Microsoft Launcher — the *ideas* only. No code, assets, or designs copied.
 **[Download merlin-launcher.apk (latest release)](https://github.com/torreskodi02-gif/ANDROID-UI/releases/download/latest/merlin-launcher.apk)**
 
 This repo is public — anyone can download it from this page. The link
-above starts working as soon as the first GitHub Actions build publishes
-the `latest` release (see "How the APK gets here" below). Until then, the
-v1.0.0 APK is also attached in the chat where it was built.
+above works now: every push to `main` builds the APK in GitHub Actions
+and publishes it to the `latest` release.
 
 Install: download the APK on your phone, tap it, allow install from
 unknown sources if asked, then press Home, pick Merlin Launcher, tap
-Always. Then set it as default: Settings > Apps > Default apps >
-Home app > Merlin Launcher.
+Always. The first-run wizard walks you through picking Grid or List,
+a preset, and making Merlin your default Home. You can also set it
+anytime in Merlin Settings ("Set Merlin as default launcher" at the
+top) or in system Settings > Apps > Default apps > Home app.
+
+## What v1.1 adds (on top of v1.0)
+
+- **Friendly first-run wizard** — Welcome, pick your style (Grid/List +
+  preset), then a big "Make Merlin your Home" button. Permissions are
+  explained in plain words, all optional.
+- **Set as default, the easy way** — a "Set Merlin as default launcher"
+  row at the top of Settings (with live status) and a gentle one-time
+  pill on Home, both using Android's RoleManager default-home request.
+- **Visual rework** — rounder cards and pills, softer colours, press
+  ripples everywhere, friendlier drawer (group headers, clear-search
+  button, "No apps match" empty state, drag-to-jump alphabet strip),
+  and gradient letter tiles for apps with no icon.
+- **More Settings** — Home grid columns/rows, icon size + label size,
+  show/hide labels, dock styles (floating rounded / full-width bar /
+  transparent), search bar and At-a-Glance toggles, date on/off,
+  12/24-hour clock, swipe-up-for-drawer toggle, haptics toggle,
+  animation speed, and "Reset all settings" with confirm.
 
 ## What v1 does
 
@@ -38,17 +57,18 @@ Home app > Merlin Launcher.
   Swipe up on the dock opens the drawer.
 - **Feed** — swipe left on Home: quick notes (auto-saved), recent apps,
   favourites. Can be turned off.
-- **Settings, searchable** — 10 grouped sections, every control reads and
+- **Settings, searchable** — grouped sections, every control reads and
   writes a real preference (no dead toggles):
   Look & Feel (6 theme palettes, Auto/Light/Dark, 8 accents, dynamic
   colour sampled from the wallpaper, wallpaper picker) · Home (style,
   presets Minimal/Classic/Dense/One-handed, grid rows/cols, icon size,
   labels, lock layout, animation speed) · Drawer (sort, columns, hidden
-  apps manager) · Dock · Icons & Folders (icon-pack picker for ADW/Nova
-  packs, 4 icon shapes, themed icons) · Gestures (swipe-down choice,
-  double-tap lock) · Notifications (badges off/dot/count + grant buttons)
-  · Feed · Backup (export/import JSON via the system file picker, with a
-  share-intent fallback) · About.
+  apps manager) · Dock (style, size) · Icons & Folders (icon-pack picker
+  for ADW/Nova packs, 4 icon shapes, themed icons) · Gestures (swipe-down
+  choice, swipe-up for drawer, double-tap lock, haptics) · Home screen
+  (search bar, At-a-Glance, date, clock format) · Notifications (badges
+  off/dot/count + grant buttons) · Feed · Backup (export/import JSON via
+  the system file picker, with a share-intent fallback) · Reset · About.
 - **Long-press any app** — App info, Uninstall, favourite, add/remove
   from Home, rename label (stored per app), hide app.
 - **Badges** — dot or count, from active notifications only. Never reads
@@ -69,7 +89,7 @@ Home app > Merlin Launcher.
 - Badges need Notification access granted in system Settings.
 - No widget host yet, so no weather widget and no At-a-Glance weather.
 
-## Not in v1 (planned for v1.1)
+## Not in v1.1 (planned next)
 
 Widget host · Shutters (widget preview on icon swipe) · Cover folders ·
 Auto-backup schedule · Real weather.
@@ -77,22 +97,12 @@ Auto-backup schedule · Real weather.
 ## How the APK gets here
 
 The repo is **public**: [torreskodi02-gif/ANDROID-UI](https://github.com/torreskodi02-gif/ANDROID-UI).
-The v1.0.0 code is already pushed to `main` (commit `fd61ddb6`).
-
-One step is still left, and only Kodi can do it — the GitHub App cannot
-push workflow files (403):
-
-1. **Paste `build-apk.yml`** to `.github/workflows/build-apk.yml` via the
-   GitHub web editor: open `build-apk.yml` in the repo, Raw, copy it,
-   then Add file > Create new file, name it
-   `.github/workflows/build-apk.yml`, paste, commit.
-2. That starts the Actions build. When it finishes, the APK is published
-   to the `latest` release and the Download link at the top of this page
-   works: `releases/download/latest/merlin-launcher.apk`.
-3. Install it and set it as the default launcher: Settings > Apps >
-   Default apps > Home app > Merlin Launcher. Then grant, in Settings >
-   Notifications and Settings > Gestures, the three optional permissions
-   above if you want badges, shade pull-down, and double-tap lock.
+Every push to `main` runs the "Build APK" workflow in GitHub Actions
+(`.github/workflows/build-apk.yml` — pasted by Kodi, since the GitHub App
+cannot push workflow files) and publishes the APK to the `latest`
+release, so the Download link at the top of this page always has the
+newest build. Install it and set it as the default launcher from the
+first-run wizard or from Merlin Settings.
 
 ## Files
 
@@ -102,7 +112,9 @@ push workflow files (403):
 | `…/Themes.kt` | 6 palettes, 8 accents, wallpaper-average dynamic colour |
 | `…/Apps.kt` | App loading, categories, usage counts, launch, long-press menu |
 | `…/IconPack.kt` | ADW/Nova icon packs + shape masking / themed icons |
-| `…/MainActivity.kt` | Home: Grid + List, Feed, dock, gestures, double-tap lock |
+| `…/MainActivity.kt` | Home: Grid + List, Feed, dock, gestures, double-tap lock, default-home nudge |
+| `…/Onboarding.kt` | First-run welcome wizard (style, preset, make-me-default) |
+| `…/DefaultHome.kt` | RoleManager default-home request + is-default check |
 | `…/Drawer.kt` | DrawerActivity: search, sorts, category sections |
 | `…/Settings.kt` | SettingsActivity: 10 sections, searchable, no dead toggles |
 | `…/BadgeService.kt` | NotificationListenerService, counts only |

@@ -6,6 +6,7 @@ import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
@@ -34,6 +35,7 @@ class SettingsActivity : Activity() {
     internal fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
     private val REQ_EXPORT = 1001
     private val REQ_IMPORT = 1002
+    private val REQ_HOME_ROLE = 1003
 
     internal fun tv(s: String, sz: Float, col: Int, bold: Boolean = false) = TextView(this).apply {
         text = s; textSize = sz; setTextColor(col)
@@ -59,6 +61,12 @@ class SettingsActivity : Activity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == REQ_HOME_ROLE) {
+            // RoleManager result: RESULT_OK means Merlin is now the default Home.
+            if (resultCode == RESULT_OK) Toast.makeText(this, "Merlin is now your default launcher", Toast.LENGTH_SHORT).show()
+            render() // refresh the "Set as default launcher" status row
+            return
+        }
         if (resultCode != RESULT_OK || data?.data == null) return
         val uri = data.data!!
         when (requestCode) {
@@ -127,6 +135,15 @@ class SettingsActivity : Activity() {
         sv.addView(container)
         main.addView(sv, LinearLayout.LayoutParams(-1, 0, 1f))
 
+        // ---------- (0) Default launcher ----------
+        // Sits at the top of the list so it is the first thing a new user sees.
+        // Status refreshes on every render (including onResume after the role request).
+        val isDefault = isDefaultHome()
+        buttonRow("Set Merlin as default launcher",
+            if (isDefault) "Merlin is your current default Home — taps below do nothing until you pick another launcher."
+            else "Merlin is not your default Home yet — tap to set it.",
+            if (isDefault) "Current default" else "Set as default") { requestDefaultHome() }
+
         // ---------- (1) Look & Feel ----------
         section("Look & Feel")
         chipsRow("Theme palette", Themes.PALETTES.map { it.name }, prefs.theme) { prefs.theme = it; render() }
@@ -147,14 +164,20 @@ class SettingsActivity : Activity() {
             Toast.makeText(this, "Preset applied", Toast.LENGTH_SHORT).show()
             render()
         }
-        stepperRow("Grid rows", prefs.gridRows, 3, 8) { prefs.gridRows = it }
+        switchRow("Lock layout", "Blocks hiding apps and moving Home items until unlocked.", prefs.lockLayout) { prefs.lockLayout = it }
+
+        // ---------- (3) Home grid ----------
+        section("Home grid")
         stepperRow("Grid columns", prefs.gridCols, 3, 6) { prefs.gridCols = it }
+        stepperRow("Grid rows", prefs.gridRows, 3, 7) { prefs.gridRows = it }
+
+        // ---------- (4) Icons ----------
+        section("Icons")
         chipsRow("Icon size", listOf("Small", "Medium", "Large"), prefs.iconSize) { prefs.iconSize = it }
         switchRow("Show app labels", "Labels under Home and drawer icons.", prefs.showLabels) { prefs.showLabels = it }
-        switchRow("Lock layout", "Blocks hiding apps and moving Home items until unlocked.", prefs.lockLayout) { prefs.lockLayout = it }
-        chipsRow("Animation speed", listOf("Off", "Normal", "Fast"), prefs.animSpeed) { prefs.animSpeed = it }
+        chipsRow("Label size", listOf("Small", "Medium", "Large"), prefs.labelSize) { prefs.labelSize = it }
 
-        // ---------- (3) Drawer ----------
+        // ---------- (5) Drawer ----------
         section("Drawer")
         chipsRow("Drawer sort", listOf("A–Z", "Most used", "Category"), prefs.drawerSort) { prefs.drawerSort = it }
         stepperRow("Drawer columns", prefs.drawerCols, 3, 6) { prefs.drawerCols = it }
@@ -173,12 +196,20 @@ class SettingsActivity : Activity() {
                 }.show()
         }
 
-        // ---------- (4) Dock ----------
+        // ---------- (6) Dock ----------
         section("Dock")
         switchRow("Show dock", "App row at the bottom of Home.", prefs.dockShow) { prefs.dockShow = it }
         stepperRow("Dock apps", prefs.dockCount, 3, 7) { prefs.dockCount = it }
+        chipsRow("Dock style", listOf("Floating", "Full-width bar", "Transparent"), prefs.dockStyle) { prefs.dockStyle = it }
 
-        // ---------- (5) Icons & Folders ----------
+        // ---------- (7) Home screen ----------
+        section("Home screen")
+        switchRow("Search bar on Home", "Search box at the top of the Home screen.", prefs.searchBarOnHome) { prefs.searchBarOnHome = it }
+        switchRow("At a Glance", "Clock, date and weather summary at the top of Home.", prefs.showAtAGlance) { prefs.showAtAGlance = it }
+        switchRow("Show date on Home", "Date line under the At-a-Glance clock.", prefs.showDateOnHome) { prefs.showDateOnHome = it }
+        chipsRow("Clock format", listOf("12-hour", "24-hour"), if (prefs.clockFormat24) 1 else 0) { prefs.clockFormat24 = it == 1 }
+
+        // ---------- (8) Icons & Folders ----------
         section("Icons & Folders")
         pickerRow("Icon pack", "Installed icon packs (ADW / Nova themes).", listOf("None") + IconPack.listIconPacks(this).map { it.label },
             run {
@@ -194,7 +225,7 @@ class SettingsActivity : Activity() {
         switchRow("Themed icons", "Mask unthemed icons into the chosen shape on an accent-tinted background.", prefs.themedIcons) { prefs.themedIcons = it }
         buttonRow("Folders", "Cover folders arrive in v1.1. For now, long-press any app to add it to Home or Favourites.", "OK") { }
 
-        // ---------- (6) Gestures ----------
+        // ---------- (9) Gestures ----------
         section("Gestures")
         chipsRow("Swipe down", listOf("Search", "App drawer"), prefs.gestureSwipeDown) { prefs.gestureSwipeDown = it }
         switchRow("Double-tap to lock", "Double-tap empty Home space to lock the screen. Needs device-admin — grant it below.", prefs.doubleTapLock) { prefs.doubleTapLock = it }
@@ -213,7 +244,13 @@ class SettingsActivity : Activity() {
             }
         }
 
-        // ---------- (7) Notifications ----------
+        // ---------- (10) Gestures & feel ----------
+        section("Gestures & feel")
+        switchRow("Swipe up for app drawer", "Swipe up from the bottom of Home to open the app drawer.", prefs.swipeUpForDrawer) { prefs.swipeUpForDrawer = it }
+        switchRow("Haptics", "Small vibration on taps and long-presses.", prefs.haptics) { prefs.haptics = it }
+        chipsRow("Animation speed", listOf("Off", "Normal", "Fast"), prefs.animSpeed) { prefs.animSpeed = it }
+
+        // ---------- (11) Notifications ----------
         section("Notifications")
         chipsRow("Badges", listOf("Off", "Dot", "Count"), prefs.badges) { prefs.badges = it }
         buttonRow("Notification access", "Required for badges. Grants counts of active notifications only — content is never read.", "Grant notification access") {
@@ -228,11 +265,11 @@ class SettingsActivity : Activity() {
             else Toast.makeText(this, "Shade service not granted yet — use the button above", Toast.LENGTH_LONG).show()
         }
 
-        // ---------- (8) Feed ----------
+        // ---------- (12) Feed ----------
         section("Feed")
         switchRow("Show Feed", "Swipe left on Home for notes, recent apps and favourites.", prefs.feedShow) { prefs.feedShow = it }
 
-        // ---------- (9) Backup ----------
+        // ---------- (13) Backup ----------
         section("Backup")
         buttonRow("Export backup", "Saves all settings, favourites, hidden apps and notes as JSON.", "Export") {
             val i = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -259,7 +296,7 @@ class SettingsActivity : Activity() {
             }
         }
 
-        // ---------- (10) About ----------
+        // ---------- (14) About ----------
         section("About")
         infoRow("Merlin Launcher", "Version 1.0.0 · app.merlinlauncher")
         infoRow("Device", "Built for Motorola One Action — 6.3\" 1080×2520, 4 GB RAM, Android 11 (last update). Target API 30, min API 28.")
@@ -272,6 +309,97 @@ class SettingsActivity : Activity() {
             "• No weather: the At-a-Glance shows a placeholder until a widget host lands in v1.1.")
         infoRow("Not in v1 (planned for v1.1)",
             "Widget host · Shutters (widget preview on icon swipe) · Cover folders · Auto-backup schedule · Real weather.")
+
+        // ---------- (15) Reset ----------
+        section("Reset")
+        buttonRow("Reset all settings", "Restores every setting to its default. Favourites, hidden apps, Home apps and notes are kept.", "Reset all settings") {
+            AlertDialog.Builder(this).setTitle("Reset all settings?")
+                .setMessage("Every Merlin Launcher setting returns to its default. Favourites, hidden apps, Home apps and notes are kept.")
+                .setPositiveButton("Reset") { _, _ ->
+                    prefs.resetAll()
+                    Toast.makeText(this, "Settings reset", Toast.LENGTH_SHORT).show()
+                    render()
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+    }
+
+    /** True when this app is currently the system's default Home app. */
+    private fun isDefaultHome(): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+            val info = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            info?.activityInfo?.packageName == packageName
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /** Asks to make Merlin the default launcher.
+     *  1. Tries MainActivity.requestDefaultHome() first, if that method exists
+     *     (added by another agent) — reflectively, so Settings still compiles
+     *     and runs when it does not exist yet.
+     *  2. Otherwise uses RoleManager (API 29+, this phone is API 30), the
+     *     standard way to request the Home role.
+     *  3. Last resort: opens system Home settings and tells the user where to tap. */
+    private fun requestDefaultHome() {
+        if (tryMainActivityRequestDefaultHome()) return
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            try {
+                val rm = getSystemService(Context.ROLE_SERVICE) as android.app.role.RoleManager
+                if (rm.isRoleAvailable(android.app.role.RoleManager.ROLE_HOME)) {
+                    startActivityForResult(
+                        rm.createRequestRoleIntent(android.app.role.RoleManager.ROLE_HOME), REQ_HOME_ROLE)
+                    return
+                }
+            } catch (e: Exception) {
+                // Fall through to system Home settings below.
+            }
+        }
+        try {
+            startActivity(Intent(Settings.ACTION_HOME_SETTINGS))
+        } catch (e: Exception) {
+            Toast.makeText(this, "Open system Settings → Apps → Default apps → Home app to set Merlin as default", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /** Reflectively calls MainActivity.requestDefaultHome() if it exists.
+     *  Handles a static method requestDefaultHome() / (Context) / (Activity),
+     *  and a companion-object method of the same name. Returns false when no
+     *  such method exists, so the caller can fall back. Note: Settings runs in
+     *  its own Activity, so there is no MainActivity instance to call an
+     *  instance method on — the MainActivity hook must be static/companion. */
+    private fun tryMainActivityRequestDefaultHome(): Boolean {
+        return try {
+            val cls = Class.forName("app.merlinlauncher.MainActivity")
+            for (m in cls.declaredMethods) {
+                if (m.name != "requestDefaultHome") continue
+                if (!java.lang.reflect.Modifier.isStatic(m.modifiers)) continue
+                m.isAccessible = true
+                when (m.parameterTypes.size) {
+                    0 -> m.invoke(null)
+                    1 -> m.invoke(null, this)
+                    else -> continue
+                }
+                return true
+            }
+            val companion = try { cls.getField("Companion").get(null) } catch (e: Exception) { null }
+                ?: return false
+            for (m in companion.javaClass.declaredMethods) {
+                if (m.name != "requestDefaultHome") continue
+                m.isAccessible = true
+                when (m.parameterTypes.size) {
+                    0 -> m.invoke(companion)
+                    1 -> m.invoke(companion, this)
+                    else -> continue
+                }
+                return true
+            }
+            false
+        } catch (e: Exception) {
+            false
+        }
     }
 
     private fun filterRows(q: String) {

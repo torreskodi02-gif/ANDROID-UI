@@ -13,10 +13,19 @@ class Prefs(ctx: Context) {
     var theme: Int get() = p.getInt("theme", 0); set(v) = p.edit().putInt("theme", v).apply() // palette index into Themes.PALETTES
     var accent: Int get() = p.getInt("accent", 0); set(v) = p.edit().putInt("accent", v).apply() // 0 = palette accent, else index into Themes.ACCENTS
     var dynamicColor: Boolean get() = p.getBoolean("dynamicColor", false); set(v) = p.edit().putBoolean("dynamicColor", v).apply()
-    var gridRows: Int get() = p.getInt("gridRows", 6); set(v) = p.edit().putInt("gridRows", v.coerceIn(3, 8)).apply()
+    var gridRows: Int get() = p.getInt("gridRows", 5); set(v) = p.edit().putInt("gridRows", v.coerceIn(3, 7)).apply()
     var gridCols: Int get() = p.getInt("gridCols", 4); set(v) = p.edit().putInt("gridCols", v.coerceIn(3, 6)).apply()
     var iconSize: Int get() = p.getInt("iconSize", 1); set(v) = p.edit().putInt("iconSize", v.coerceIn(0, 2)).apply() // 0 Small, 1 Medium, 2 Large
     var showLabels: Boolean get() = p.getBoolean("showLabels", true); set(v) = p.edit().putBoolean("showLabels", v).apply()
+    // ---- v1.1 additions (defaults preserve v1 behaviour) ----
+    var labelSize: Int get() = p.getInt("labelSize", 1); set(v) = p.edit().putInt("labelSize", v.coerceIn(0, 2)).apply() // 0 Small, 1 Medium, 2 Large
+    var dockStyle: Int get() = p.getInt("dockStyle", 0); set(v) = p.edit().putInt("dockStyle", v.coerceIn(0, 2)).apply() // 0 Floating rounded, 1 Full-width bar, 2 Transparent
+    var searchBarOnHome: Boolean get() = p.getBoolean("searchBarOnHome", true); set(v) = p.edit().putBoolean("searchBarOnHome", v).apply()
+    var showAtAGlance: Boolean get() = p.getBoolean("showAtAGlance", true); set(v) = p.edit().putBoolean("showAtAGlance", v).apply()
+    var showDateOnHome: Boolean get() = p.getBoolean("showDateOnHome", true); set(v) = p.edit().putBoolean("showDateOnHome", v).apply()
+    var clockFormat24: Boolean get() = p.getBoolean("clockFormat24", false); set(v) = p.edit().putBoolean("clockFormat24", v).apply() // false = 12-hour, true = 24-hour
+    var swipeUpForDrawer: Boolean get() = p.getBoolean("swipeUpForDrawer", true); set(v) = p.edit().putBoolean("swipeUpForDrawer", v).apply()
+    var haptics: Boolean get() = p.getBoolean("haptics", true); set(v) = p.edit().putBoolean("haptics", v).apply()
     var dockShow: Boolean get() = p.getBoolean("dockShow", true); set(v) = p.edit().putBoolean("dockShow", v).apply()
     var dockCount: Int get() = p.getInt("dockCount", 5); set(v) = p.edit().putInt("dockCount", v.coerceIn(3, 7)).apply()
     var drawerSort: Int get() = p.getInt("drawerSort", 0); set(v) = p.edit().putInt("drawerSort", v).apply() // 0 A-Z, 1 Most-used, 2 Category
@@ -71,7 +80,7 @@ class Prefs(ctx: Context) {
             }
             "Dense" -> {
                 e.putInt("homeStyle", 0); e.putInt("theme", 0); e.putInt("themeMode", 2)
-                e.putInt("gridRows", 8); e.putInt("gridCols", 6); e.putInt("iconSize", 0)
+                e.putInt("gridRows", 7); e.putInt("gridCols", 6); e.putInt("iconSize", 0)
                 e.putBoolean("showLabels", true); e.putBoolean("dockShow", true); e.putInt("dockCount", 7)
                 e.putInt("drawerSort", 0); e.putInt("drawerCols", 6); e.putInt("iconShape", 3)
                 e.putBoolean("themedIcons", true); e.putInt("badges", 2); e.putInt("animSpeed", 2)
@@ -88,13 +97,30 @@ class Prefs(ctx: Context) {
         e.apply()
     }
 
+    /** Restores every setting (old and new) to its default. Removes the stored
+     *  value for each setting key, so the getters fall back to their defaults.
+     *  Favourites, hidden apps, Home apps, label overrides and usage stats are
+     *  user data, not settings, and are kept; Feed notes are kept too. */
+    fun resetAll() {
+        val e = p.edit()
+        for (k in listOf("homeStyle", "themeMode", "theme", "accent", "dynamicColor", "gridRows", "gridCols",
+            "iconSize", "showLabels", "labelSize", "dockShow", "dockCount", "dockStyle", "drawerSort",
+            "drawerCols", "iconPack", "iconShape", "themedIcons", "badges", "gestureSwipeDown",
+            "swipeUpForDrawer", "doubleTapLock", "lockLayout", "haptics", "animSpeed", "feedShow",
+            "searchBarOnHome", "showAtAGlance", "showDateOnHome", "clockFormat24", "preset")) {
+            e.remove(k)
+        }
+        e.apply()
+    }
+
     /** Full settings backup as JSON (org.json is built into Android). */
     fun backupToJson(): String {
         val o = JSONObject()
         val keys = listOf("homeStyle", "themeMode", "theme", "accent", "dynamicColor", "gridRows", "gridCols",
-            "iconSize", "showLabels", "dockShow", "dockCount", "drawerSort", "drawerCols", "iconPack",
-            "iconShape", "themedIcons", "badges", "gestureSwipeDown", "doubleTapLock", "lockLayout",
-            "animSpeed", "feedShow", "preset", "notes")
+            "iconSize", "showLabels", "labelSize", "dockShow", "dockCount", "dockStyle", "drawerSort", "drawerCols", "iconPack",
+            "iconShape", "themedIcons", "badges", "gestureSwipeDown", "swipeUpForDrawer", "doubleTapLock", "lockLayout",
+            "haptics", "animSpeed", "feedShow", "searchBarOnHome", "showAtAGlance", "showDateOnHome", "clockFormat24",
+            "preset", "notes")
         for (k in keys) {
             val v = p.all[k] ?: continue
             when (v) {

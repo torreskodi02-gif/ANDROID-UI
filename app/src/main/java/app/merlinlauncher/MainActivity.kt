@@ -13,6 +13,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.view.GestureDetector
 import android.view.Gravity
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -37,6 +38,10 @@ class MainActivity : Activity() {
     private var feedMode = false
     private var letterY = HashMap<String, Int>()
     private var scrollView: ScrollView? = null
+    private var showingOnboarding = false
+    private var onboardingView: OnboardingView? = null
+    private var defaultPillShown = false
+    private var defaultPillDismissed = false
 
     internal fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -45,11 +50,20 @@ class MainActivity : Activity() {
         if (bold) setTypeface(typeface, Typeface.BOLD)
     }
 
+    /** Light tap feedback, gated by the Haptics setting. */
+    private fun tapHaptic() {
+        if (prefs.haptics) root.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+    }
+
+    /** Label text size from the labelSize pref (0 small / 1 medium / 2 large). */
+    private fun tileLabelSize() = listOf(10f, 12f, 14f)[prefs.labelSize.coerceIn(0, 2)]
+    private fun rowLabelSize() = listOf(14f, 16f, 18f)[prefs.labelSize.coerceIn(0, 2)]
+
     internal fun pill(s: String, bg: Int, fg: Int, f: () -> Unit) = TextView(this).apply {
-        text = s; textSize = 14f; setTextColor(fg); gravity = Gravity.CENTER
+        text = s; textSize = Themes.Type.BODY; setTextColor(fg); gravity = Gravity.CENTER
         setPadding(dp(18), dp(10), dp(18), dp(10))
-        val g = GradientDrawable(); g.setColor(bg); g.cornerRadius = dp(24).toFloat(); background = g
-        setOnClickListener { f() }
+        background = Themes.pressable(this@MainActivity, bg, Themes.Radius.PILL, Themes.withAlpha(fg, 0.14f))
+        setOnClickListener { tapHaptic(); f() }
     }
 
     override fun onCreate(s: Bundle?) {
@@ -59,16 +73,22 @@ class MainActivity : Activity() {
         setContentView(root)
         val gd = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
             override fun onDoubleTap(e: MotionEvent): Boolean {
+                if (showingOnboarding) return true
                 if (prefs.doubleTapLock) lockScreen()
                 return true
             }
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
+                if (showingOnboarding) return false
                 if (e1 == null) return false
                 val dx = e2.x - e1.x; val dy = e2.y - e1.y
                 if (dy > 120 && Math.abs(dy) > Math.abs(dx) * 1.5f) {
                     // Swipe down
                     if (prefs.gestureSwipeDown == 0) openDrawer() else openDrawer()
                     return true
+                }
+                if (dy < -120 && Math.abs(dy) > Math.abs(dx) * 1.5f) {
+                    // Swipe up: open the app drawer (unless turned off in Settings).
+                    if (prefs.swipeUpForDrawer) { openDrawer(); return true }
                 }
                 if (dx < -120 && Math.abs(dx) > Math.abs(dy) * 1.5f && prefs.feedShow && !feedMode) {
                     feedMode = true; render(); return true
@@ -79,20 +99,77 @@ class MainActivity : Activity() {
                 return false
             }
             override fun onLongPress(e: MotionEvent) {
+                if (showingOnboarding) return
                 if (!feedMode) openSettings()
             }
         })
         root.setOnTouchListener { _, ev -> gd.onTouchEvent(ev) }
+
+        // First run: friendly welcome wizard before the home screen.
+        if (!Onboarding.isOnboarded(this)) {
+            showOnboarding()
+        }
     }
 
     override fun onResume() {
         super.onResume()
+        if (showingOnboarding) return
         apps = Apps.loadApps(this, prefs)
         render()
+        maybeHandleHomeRequest()
+    }
+
+    /** Settings can ask for the default-home flow via the "requestDefaultHome" extra. */
+    private fun maybeHandleHomeRequest() {
+        if (intent.getBooleanExtra("requestDefaultHome", false)) {
+            intent.removeExtra("requestDefaultHome")
+            requestDefaultHome()
+        }
     }
 
     override fun onBackPressed() {
+        if (showingOnboarding) {
+            // Step back a wizard page; on page 1, Back leaves the wizard (back to the old Home).
+            if (onboardingView?.goBack() == true) return
+            super.onBackPressed()
+            return
+        }
         if (feedMode) { feedMode = false; render() } else super.onBackPressed()
+    }
+
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == DefaultHome.REQUEST_DEFAULT_HOME) {
+            if (DefaultHome.isDefaultLauncher(this)) {
+                Toast.makeText(this, "Merlin is your Home now — welcome home!", Toast.LENGTH_LONG).show()
+            }
+            // Not granted: say nothing. No nagging — the home pill offers again next launch.
+            if (!showingOnboarding) render()
+        }
+    }
+
+    /** Ask the system to make Merlin the default Home app. Settings calls this
+     *  via MainActivity: startActivity(Intent(this, MainActivity::class.java)
+     *  .putExtra("requestDefaultHome", true)). */
+    fun requestDefaultHome() {
+        DefaultHome.requestDefaultHome(this)
+    }
+
+    private fun showOnboarding() {
+        showingOnboarding = true
+        val view = OnboardingView(this, prefs) { finishOnboarding() }
+        onboardingView = view
+        root.addView(view, FrameLayout.LayoutParams(-1, -1))
+    }
+
+    private fun finishOnboarding() {
+        Onboarding.setOnboarded(this)
+        showingOnboarding = false
+        onboardingView?.let { root.removeView(it) }
+        onboardingView = null
+        apps = Apps.loadApps(this, prefs)
+        render()
+        maybeHandleHomeRequest()
     }
 
     private fun openDrawer() {
@@ -127,7 +204,12 @@ class MainActivity : Activity() {
         val frame = FrameLayout(this)
         val iv = ImageView(this)
         val raw = IconPack.resolve(this, app, prefs)
-        iv.setImageDrawable(if (prefs.themedIcons) IconPack.shaped(this, raw, prefs.iconShape, accent, iconPx) else raw)
+        // Themed icons get the friendly tile treatment (shape from the Icon shape
+        // setting); an app with no icon gets a gradient letter tile, never a blank.
+        val drawable = if (raw == null) IconPack.fallbackIcon(this, app.label, accent, iconPx)
+            else if (prefs.themedIcons) IconPack.shaped(this, raw, prefs.iconShape, accent, iconPx)
+            else raw
+        iv.setImageDrawable(drawable)
         iv.layoutParams = FrameLayout.LayoutParams(iconPx, iconPx, Gravity.CENTER_HORIZONTAL)
         frame.addView(iv)
         val count = BadgeService.countFor(app.pkg)
@@ -155,14 +237,16 @@ class MainActivity : Activity() {
         val col = LinearLayout(this)
         col.orientation = LinearLayout.VERTICAL
         col.gravity = Gravity.CENTER_HORIZONTAL
+        col.minimumHeight = dp(84)
+        col.background = Themes.pressable(this, Color.TRANSPARENT, Themes.Radius.TILE, Themes.withAlpha(accent, 0.16f))
         col.addView(frame)
         if (prefs.showLabels) {
-            val label = tv(app.label, 12f, Themes.text(prefs, this))
+            val label = tv(app.label, tileLabelSize(), Themes.text(prefs, this))
             label.gravity = Gravity.CENTER
             label.maxLines = 1
             col.addView(label)
         }
-        col.setOnClickListener { Apps.launch(this, app, prefs) }
+        col.setOnClickListener { tapHaptic(); Apps.launch(this, app, prefs) }
         col.setOnLongClickListener { Apps.showAppMenu(this, app, prefs) { apps = Apps.loadApps(this, prefs); render() }; true }
         return col
     }
@@ -187,16 +271,20 @@ class MainActivity : Activity() {
         header.orientation = LinearLayout.HORIZONTAL
         header.gravity = Gravity.CENTER_VERTICAL
         val dateFmt = SimpleDateFormat("EEEE, MMM d", Locale.getDefault())
-        val timeFmt = SimpleDateFormat("h:mm a", Locale.getDefault())
+        val timeFmt = SimpleDateFormat(if (prefs.clockFormat24) "HH:mm" else "h:mm a", Locale.getDefault())
         val now = Date()
-        val glance = LinearLayout(this)
-        glance.orientation = LinearLayout.VERTICAL
-        glance.addView(tv(timeFmt.format(now), 30f, tx, true))
-        glance.addView(tv(dateFmt.format(now), 14f, sub))
-        // Honest placeholder: no weather API in v1, no fake forecast.
-        glance.addView(tv("Weather: add widget  ·  v1.1", 12f, sub))
-        val glanceLp = LinearLayout.LayoutParams(0, -2, 1f)
-        header.addView(glance, glanceLp)
+        if (prefs.showAtAGlance) {
+            val glance = LinearLayout(this)
+            glance.orientation = LinearLayout.VERTICAL
+            glance.addView(tv(timeFmt.format(now), Themes.Type.DISPLAY, tx, true))
+            if (prefs.showDateOnHome) glance.addView(tv(dateFmt.format(now), Themes.Type.SUBTITLE, sub))
+            // Honest placeholder: no weather API in v1, no fake forecast.
+            glance.addView(tv("Weather: add widget  ·  v1.1", Themes.Type.CAPTION, sub))
+            val glanceLp = LinearLayout.LayoutParams(0, -2, 1f)
+            header.addView(glance, glanceLp)
+        } else {
+            header.addView(View(this), LinearLayout.LayoutParams(0, -2, 1f))
+        }
         header.addView(pill(if (prefs.homeStyle == 0) "List" else "Grid", card, tx) {
             prefs.homeStyle = if (prefs.homeStyle == 0) 1 else 0
             render()
@@ -206,10 +294,37 @@ class MainActivity : Activity() {
         header.addView(gear, gearLp)
         main.addView(header)
 
-        // ---- Search pill ----
-        val search = pill("🔍  Search apps…", card, sub) { openDrawer() }
-        val searchLp = LinearLayout.LayoutParams(-1, -2); searchLp.setMargins(0, dp(12), 0, dp(4))
-        main.addView(search, searchLp)
+        // ---- Search pill (with a soft outline, hidden if turned off in Settings) ----
+        if (prefs.searchBarOnHome) {
+            val search = TextView(this).apply {
+                text = "🔍  Search apps…"; textSize = Themes.Type.BODY; setTextColor(sub); gravity = Gravity.CENTER
+                setPadding(dp(18), dp(10), dp(18), dp(10))
+                background = Themes.pillBackground(this@MainActivity, card, Themes.withAlpha(sub, 0.25f))
+                setOnClickListener { tapHaptic(); openDrawer() }
+            }
+            val searchLp = LinearLayout.LayoutParams(-1, -2); searchLp.setMargins(0, dp(12), 0, dp(4))
+            main.addView(search, searchLp)
+        }
+
+        // ---- Gentle "make me default" nudge: once per app start, dismissible,
+        // never while onboarding is showing (render() is not called then). ----
+        if (!defaultPillDismissed && !defaultPillShown && !DefaultHome.isDefaultLauncher(this)) {
+            defaultPillShown = true
+            val nudge = LinearLayout(this)
+            nudge.orientation = LinearLayout.HORIZONTAL
+            nudge.gravity = Gravity.CENTER_VERTICAL
+            nudge.background = Themes.cardBackground(this, card)
+            nudge.setPadding(dp(16), dp(12), dp(8), dp(12))
+            val label = tv("Make Merlin your default Home?", 14f, tx, true)
+            nudge.addView(label, LinearLayout.LayoutParams(0, -2, 1f))
+            nudge.addView(pill("Set it up", accent, Color.WHITE) { requestDefaultHome() })
+            val x = tv("✕", 16f, sub)
+            x.setPadding(dp(12), 0, dp(4), 0)
+            x.setOnClickListener { defaultPillDismissed = true; render() }
+            nudge.addView(x)
+            val nlp = LinearLayout.LayoutParams(-1, -2); nlp.setMargins(0, dp(8), 0, 0)
+            main.addView(nudge, nlp)
+        }
 
         if (feedMode) {
             renderFeed(main, card, tx, sub, accent)
@@ -224,9 +339,18 @@ class MainActivity : Activity() {
             val dock = LinearLayout(this)
             dock.orientation = LinearLayout.HORIZONTAL
             dock.gravity = Gravity.CENTER
-            val g = GradientDrawable(); g.setColor(card); g.cornerRadius = dp(24).toFloat()
-            dock.background = g
-            dock.setPadding(dp(8), dp(8), dp(8), dp(8))
+            // Dock style: 0 floating rounded card, 1 full-width bar, 2 transparent.
+            when (prefs.dockStyle) {
+                1 -> {
+                    dock.background = Themes.roundedBackground(this, 4, card)
+                    dock.setPadding(dp(8), dp(8), dp(8), dp(8))
+                }
+                2 -> dock.setPadding(dp(8), dp(8), dp(8), dp(8))
+                else -> {
+                    Themes.applyCard(dock, this, card, 8f)
+                    dock.setPadding(dp(8), dp(8), dp(8), dp(8))
+                }
+            }
             val favs = prefs.favourites()
             val dockApps = ArrayList<AppInfo>()
             for (a in apps) if (favs.contains(a.pkg)) dockApps.add(a)
@@ -244,11 +368,11 @@ class MainActivity : Activity() {
             }
             val dockLp = LinearLayout.LayoutParams(-1, -2); dockLp.setMargins(0, dp(8), 0, 0)
             main.addView(dock, dockLp)
-            // Swipe up on the dock opens the app drawer.
+            // Swipe up on the dock opens the app drawer (unless turned off in Settings).
             // (Cover folders are a v1.1 feature — see README.)
             val dockGd = GestureDetector(this, object : GestureDetector.SimpleOnGestureListener() {
                 override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
-                    if (e1 != null && e1.y - e2.y > 100) { openDrawer(); return true }
+                    if (prefs.swipeUpForDrawer && e1 != null && e1.y - e2.y > 100) { openDrawer(); return true }
                     return false
                 }
             })
@@ -357,27 +481,33 @@ class MainActivity : Activity() {
         row.orientation = LinearLayout.HORIZONTAL
         row.gravity = Gravity.CENTER_VERTICAL
         row.setPadding(dp(4), dp(7), dp(4), dp(7))
+        row.minimumHeight = dp(56)
+        row.background = Themes.pressable(this, Color.TRANSPARENT, Themes.Radius.TILE, Themes.withAlpha(Themes.accent(prefs, this), 0.12f))
         val iv = ImageView(this)
         val raw = IconPack.resolve(this, app, prefs)
-        iv.setImageDrawable(if (prefs.themedIcons) IconPack.shaped(this, raw, prefs.iconShape, Themes.accent(prefs, this), iconPx) else raw)
+        val accent = Themes.accent(prefs, this)
+        val drawable = if (raw == null) IconPack.fallbackIcon(this, app.label, accent, iconPx)
+            else if (prefs.themedIcons) IconPack.shaped(this, raw, prefs.iconShape, accent, iconPx)
+            else raw
+        iv.setImageDrawable(drawable)
         row.addView(iv, LinearLayout.LayoutParams(iconPx, iconPx))
-        val label = tv(app.label, 16f, tx)
+        val label = tv(app.label, rowLabelSize(), tx)
         val llp = LinearLayout.LayoutParams(0, -2, 1f); llp.setMargins(dp(14), 0, 0, 0)
         row.addView(label, llp)
         val count = BadgeService.countFor(app.pkg)
         if (prefs.badges > 0 && count > 0) {
             row.addView(tv(if (prefs.badges == 2) count.toString() else "●", 13f, Color.parseColor("#E5484D"), true))
         }
-        row.setOnClickListener { Apps.launch(this, app, prefs) }
+        row.setOnClickListener { tapHaptic(); Apps.launch(this, app, prefs) }
         row.setOnLongClickListener { Apps.showAppMenu(this, app, prefs) { apps = Apps.loadApps(this, prefs); render() }; true }
         return row
     }
 
     /** Feed page: quick notes + recent apps + favourites. */
     private fun renderFeed(main: LinearLayout, card: Int, tx: Int, sub: Int, accent: Int) {
-        val title = tv("Feed", 22f, tx, true)
+        val title = tv("Feed", Themes.Type.TITLE, tx, true)
         main.addView(title)
-        val notesLabel = tv("Quick notes", 13f, sub, true)
+        val notesLabel = tv("Quick notes", Themes.Type.CAPTION, sub, true)
         notesLabel.setPadding(0, dp(12), 0, dp(4))
         main.addView(notesLabel)
         val et = EditText(this)
@@ -386,8 +516,7 @@ class MainActivity : Activity() {
         et.setHintTextColor(sub)
         et.hint = "Type a note… saved automatically"
         et.minLines = 4
-        val g = GradientDrawable(); g.setColor(card); g.cornerRadius = dp(16).toFloat()
-        et.background = g
+        et.background = Themes.cardBackground(this, card)
         et.setPadding(dp(14), dp(12), dp(14), dp(12))
         et.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
@@ -395,7 +524,7 @@ class MainActivity : Activity() {
             override fun afterTextChanged(s: Editable?) { prefs.notes = s?.toString() ?: "" }
         })
         main.addView(et, LinearLayout.LayoutParams(-1, -2))
-        val recentLabel = tv("Recent apps", 13f, sub, true)
+        val recentLabel = tv("Recent apps", Themes.Type.CAPTION, sub, true)
         recentLabel.setPadding(0, dp(16), 0, dp(4))
         main.addView(recentLabel)
         val iconPx = dp(52)
