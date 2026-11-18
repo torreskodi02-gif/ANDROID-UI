@@ -14,9 +14,32 @@ plugins {
 // returns void/null, so .toInteger() on null fails with "Value is null".
 def vc = System.getenv('VC') ?: '1'
 
+// Stable signing key (v1.2.2): every CI build used to be signed with a
+// fresh auto-generated debug key, so Android refused to install each new
+// APK over the old one ("App not installed") — Kodi was stuck on the old
+// build while the fixes sat in the release. From here on every build is
+// signed with this one committed key, so updates install cleanly.
+// The keystore is committed as base64 text (merlin.keystore.b64) because
+// the push tooling can't carry binary files; this block decodes it at
+// configuration time. The password is intentionally simple and public —
+// the key only proves "same app" for updates; nothing else trusts it.
+def ksFile = file('merlin.keystore')
+if (!ksFile.exists()) {
+    ksFile.bytes = java.util.Base64.decoder.decode(file('merlin.keystore.b64').text.trim())
+}
+
 android {
     namespace 'app.merlinlauncher'
     compileSdk 34
+
+    signingConfigs {
+        merlin {
+            storeFile ksFile
+            storePassword 'merlin123'
+            keyAlias 'merlin'
+            keyPassword 'merlin123'
+        }
+    }
 
     defaultConfig {
         applicationId 'app.merlinlauncher'
@@ -24,7 +47,7 @@ android {
         targetSdk 30
         // versionCode comes from CI (VC = 10000 + run number); 1 for local builds.
         versionCode vc.toInteger()
-        versionName '1.2.1'
+        versionName '1.2.2'
     }
 
     buildTypes {
@@ -33,6 +56,7 @@ android {
         }
         debug {
             minifyEnabled false
+            signingConfig signingConfigs.merlin
         }
     }
 

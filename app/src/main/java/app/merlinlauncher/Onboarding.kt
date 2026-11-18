@@ -278,6 +278,12 @@ class OnboardingView(
         }
         val spacer = View(activity)
         navRow.addView(spacer, LinearLayout.LayoutParams(0, -2, 1f))
+        // Skip lives in the nav row (which always renders) so the wizard
+        // can never trap the user, even if the page content fails to draw.
+        val skip = tv("Skip", 16f, accent, true)
+        skip.setPadding(dp(12), dp(14), dp(12), dp(14))
+        skip.setOnClickListener { onFinish() }
+        navRow.addView(skip)
         if (page < 2) {
             val next = bigButton(if (page == 0) "Let's go  →" else "Continue  →", accent, card, tx, true) { nextPage() }
             navRow.addView(next, LinearLayout.LayoutParams(-2, -2))
