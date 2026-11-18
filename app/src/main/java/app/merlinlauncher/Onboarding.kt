@@ -9,6 +9,7 @@ import android.view.GestureDetector
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
@@ -33,36 +34,61 @@ object Onboarding {
  *  Shown as the content view until the user finishes (or taps "Maybe later").
  *  Style choices save immediately via Prefs. The default-home request goes
  *  through DefaultHome; MainActivity handles its onActivityResult.
- *  Programmatic Views only, no XML, no Compose, no new dependencies. */
+ *  Programmatic Views only, no XML, no Compose, no new dependencies.
+ *
+ *  Layout (fixed in v1.2.1): the v1.1 wizard put the page content in a
+ *  ScrollView with layout-weight inside a vertical LinearLayout, and on
+ *  Kodi's One Action the content measured 0px tall — the wizard showed
+ *  only the dots and the "Let's go" button on an empty screen. This
+ *  version uses a FrameLayout instead: a full-height ScrollView for the
+ *  page content (no weights anywhere) and a bottom bar pinned to the
+ *  bottom with the dots + navigation, so the content can never collapse
+ *  and the buttons can never float mid-screen. */
 class OnboardingView(
     private val activity: Activity,
     private val prefs: Prefs,
     private val onFinish: () -> Unit
-) : LinearLayout(activity) {
+) : FrameLayout(activity) {
 
     private var page = 0
     private lateinit var content: LinearLayout
     private lateinit var dotsRow: LinearLayout
     private lateinit var navRow: LinearLayout
+    private lateinit var bottomBar: LinearLayout
 
     init {
-        orientation = VERTICAL
-        setPadding(dp(24), dp(32), dp(24), dp(24))
+        // Page content: full-height ScrollView, no layout weights.
         val sv = ScrollView(activity)
-        content = LinearLayout(activity).apply { orientation = VERTICAL }
-        sv.addView(content, LinearLayout.LayoutParams(-1, -2))
-        addView(sv, LinearLayout.LayoutParams(-1, 0, 1f))
+        content = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            // Top/side padding for the page; big bottom padding so the last
+            // line is never hidden behind the pinned bottom bar.
+            setPadding(dp(24), dp(32), dp(24), dp(170))
+        }
+        sv.addView(content, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT))
+        addView(sv, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT))
+
+        // Bottom bar: dots + navigation, pinned to the bottom, solid
+        // background so scrolled content slides under it cleanly.
+        bottomBar = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), dp(24))
+        }
         dotsRow = LinearLayout(activity).apply {
-            orientation = HORIZONTAL
+            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER
             setPadding(0, dp(16), 0, dp(12))
         }
-        addView(dotsRow, LinearLayout.LayoutParams(-1, -2))
+        bottomBar.addView(dotsRow, LinearLayout.LayoutParams(-1, -2))
         navRow = LinearLayout(activity).apply {
-            orientation = HORIZONTAL
+            orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        addView(navRow, LinearLayout.LayoutParams(-1, -2))
+        bottomBar.addView(navRow, LinearLayout.LayoutParams(-1, -2))
+        val barLp = LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.WRAP_CONTENT)
+        barLp.gravity = Gravity.BOTTOM
+        addView(bottomBar, barLp)
+
         // Swipe left/right to move between pages (buttons do the same).
         val gd = GestureDetector(activity, object : GestureDetector.SimpleOnGestureListener() {
             override fun onFling(e1: MotionEvent?, e2: MotionEvent, vx: Float, vy: Float): Boolean {
@@ -107,7 +133,7 @@ class OnboardingView(
     /** Tappable option card; selected cards get an accent outline. */
     private fun optionCard(title: String, desc: String, selected: Boolean, accent: Int, card: Int, tx: Int, sub: Int, onClick: () -> Unit): View {
         val col = LinearLayout(activity)
-        col.orientation = VERTICAL
+        col.orientation = LinearLayout.VERTICAL
         col.setPadding(dp(18), dp(16), dp(18), dp(16))
         val g = GradientDrawable()
         g.setColor(card)
@@ -129,6 +155,7 @@ class OnboardingView(
         val sub = Themes.sub(prefs, activity)
         val accent = Themes.accent(prefs, activity)
         setBackgroundColor(bg)
+        bottomBar.setBackgroundColor(bg)
         content.removeAllViews()
         when (page) {
             0 -> pageWelcome(tx, sub, accent)
@@ -140,26 +167,26 @@ class OnboardingView(
     }
 
     private fun pageWelcome(tx: Int, sub: Int, accent: Int) {
-        val mark = tv("✦", 64f, accent, true)
+        val mark = tv("✦", 72f, accent, true)
         mark.gravity = Gravity.CENTER
         mark.setPadding(0, dp(40), 0, dp(8))
-        content.addView(mark)
-        val title = tv("Welcome to Merlin", 30f, tx, true)
+        content.addView(mark, LinearLayout.LayoutParams(-1, -2))
+        val title = tv("Welcome to Merlin", 34f, tx, true)
         title.gravity = Gravity.CENTER
-        content.addView(title)
-        val body = tv("Your new home screen — fast, friendly, and yours to make your own.", 16f, sub)
+        content.addView(title, LinearLayout.LayoutParams(-1, -2))
+        val body = tv("Your new home screen — fast, friendly, and yours to make your own.", 17f, sub)
         body.gravity = Gravity.CENTER
         body.setPadding(dp(16), dp(16), dp(16), 0)
-        content.addView(body)
-        val hint = tv("It only takes a minute to set up.", 14f, sub)
+        content.addView(body, LinearLayout.LayoutParams(-1, -2))
+        val hint = tv("It only takes a minute to set up.", 15f, sub)
         hint.gravity = Gravity.CENTER
         hint.setPadding(0, dp(24), 0, 0)
-        content.addView(hint)
+        content.addView(hint, LinearLayout.LayoutParams(-1, -2))
     }
 
     private fun pageStyle(card: Int, tx: Int, sub: Int, accent: Int) {
-        content.addView(tv("Pick your style", 26f, tx, true))
-        val hint = tv("Tap to try it — it saves right away. You can change everything later in Settings.", 14f, sub)
+        content.addView(tv("Pick your style", 28f, tx, true))
+        val hint = tv("Tap to try it — it saves right away. You can change everything later in Settings.", 15f, sub)
         hint.setPadding(0, dp(8), 0, dp(20))
         content.addView(hint)
 
@@ -191,8 +218,8 @@ class OnboardingView(
     }
 
     private fun pageHome(card: Int, tx: Int, sub: Int, accent: Int) {
-        content.addView(tv("Make Merlin your Home", 26f, tx, true))
-        val body = tv("So your Home button always brings you back here — to your apps, your way.", 15f, sub)
+        content.addView(tv("Make Merlin your Home", 28f, tx, true))
+        val body = tv("So your Home button always brings you back here — to your apps, your way.", 16f, sub)
         body.setPadding(0, dp(10), 0, dp(24))
         content.addView(body)
 
@@ -202,7 +229,7 @@ class OnboardingView(
         }
         content.addView(go, LinearLayout.LayoutParams(-1, -2))
 
-        val perms = LinearLayout(activity).apply { orientation = VERTICAL }
+        val perms = LinearLayout(activity).apply { orientation = LinearLayout.VERTICAL }
         val pg = GradientDrawable(); pg.setColor(card); pg.cornerRadius = dp(20).toFloat()
         perms.background = pg
         perms.setPadding(dp(18), dp(16), dp(18), dp(16))
