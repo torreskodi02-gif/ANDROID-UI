@@ -26,6 +26,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -58,6 +59,31 @@ class MainActivity : Activity() {
     /** Label text size from the labelSize pref (0 small / 1 medium / 2 large). */
     private fun tileLabelSize() = listOf(10f, 12f, 14f)[prefs.labelSize.coerceIn(0, 2)]
     private fun rowLabelSize() = listOf(14f, 16f, 18f)[prefs.labelSize.coerceIn(0, 2)]
+
+    // ---- v1.2 prefs, read via raw keys so this file compiles even while the
+    // Prefs agent is still adding the typed accessors (same keys/defaults). ----
+    private fun prefInt(key: String, def: Int) = prefs.p.getInt(key, def)
+    private fun prefClockStyle() = prefInt("clockStyle", 0) // 0 big, 1 compact, 2 date-first
+    private fun prefSearchStyle() = prefInt("searchStyle", 0) // 0 pill, 1 bar, 2 minimal
+    private fun prefFontScale() = prefInt("fontScale", 1) // 0 small, 1 normal, 2 large
+    private fun prefTileStyle() = prefInt("tileStyle", 0) // 0 flat, 1 glassy card, 2 bold outline
+    private fun prefHomeDim() = prefInt("homeDim", 0) // 0..100
+
+    /** Font scale: small = -2sp, normal = base, large = +3sp. */
+    private fun fs(base: Float) = base + when (prefFontScale()) { 0 -> -2f; 2 -> 3f; else -> 0f }
+
+    /** Tile surface for the current tileStyle: flat = transparent ripple,
+     *  glassy = rounded card surface, bold outline = 2dp accent-tinted stroke. */
+    private fun tileSurface(card: Int, accent: Int): android.graphics.drawable.Drawable {
+        val ripple = Themes.withAlpha(accent, 0.16f)
+        return when (prefTileStyle()) {
+            1 -> Themes.pressable(this, card, Themes.Radius.TILE, ripple)
+            2 -> Themes.rippleDrawable(this, ripple,
+                Themes.roundedBackground(this, Themes.Radius.TILE, Color.TRANSPARENT,
+                    Themes.withAlpha(accent, 0.55f), 2), Themes.Radius.TILE)
+            else -> Themes.pressable(this, Color.TRANSPARENT, Themes.Radius.TILE, ripple)
+        }
+    }
 
     internal fun pill(s: String, bg: Int, fg: Int, f: () -> Unit) = TextView(this).apply {
         text = s; textSize = Themes.Type.BODY; setTextColor(fg); gravity = Gravity.CENTER
@@ -238,10 +264,11 @@ class MainActivity : Activity() {
         col.orientation = LinearLayout.VERTICAL
         col.gravity = Gravity.CENTER_HORIZONTAL
         col.minimumHeight = dp(84)
-        col.background = Themes.pressable(this, Color.TRANSPARENT, Themes.Radius.TILE, Themes.withAlpha(accent, 0.16f))
+        col.background = tileSurface(Themes.card(prefs, this), accent)
+        if (prefTileStyle() == 1) col.elevation = dp(4).toFloat()
         col.addView(frame)
         if (prefs.showLabels) {
-            val label = tv(app.label, tileLabelSize(), Themes.text(prefs, this))
+            val label = tv(app.label, fs(tileLabelSize()), Themes.text(prefs, this))
             label.gravity = Gravity.CENTER
             label.maxLines = 1
             col.addView(label)
@@ -257,7 +284,9 @@ class MainActivity : Activity() {
         val tx = Themes.text(prefs, this)
         val sub = Themes.sub(prefs, this)
         val accent = Themes.accent(prefs, this)
-        root.setBackgroundColor(bg)
+        // Home dim: darken the background toward black by the chosen percent.
+        val dimBg = Themes.blend(bg, Color.BLACK, prefHomeDim().coerceIn(0, 100) / 100f)
+        root.setBackgroundColor(dimBg)
         root.removeAllViews()
         scrollView = null
 
@@ -266,7 +295,7 @@ class MainActivity : Activity() {
         main.setPadding(dp(16), dp(12), dp(16), dp(8))
         root.addView(main, FrameLayout.LayoutParams(-1, -1))
 
-        // ---- Header: date/time, style toggle, settings gear ----
+        // ---- Hero header: friendly greeting + clock in three styles ----
         val header = LinearLayout(this)
         header.orientation = LinearLayout.HORIZONTAL
         header.gravity = Gravity.CENTER_VERTICAL
@@ -274,14 +303,40 @@ class MainActivity : Activity() {
         val timeFmt = SimpleDateFormat(if (prefs.clockFormat24) "HH:mm" else "h:mm a", Locale.getDefault())
         val now = Date()
         if (prefs.showAtAGlance) {
-            val glance = LinearLayout(this)
-            glance.orientation = LinearLayout.VERTICAL
-            glance.addView(tv(timeFmt.format(now), Themes.Type.DISPLAY, tx, true))
-            if (prefs.showDateOnHome) glance.addView(tv(dateFmt.format(now), Themes.Type.SUBTITLE, sub))
-            // Honest placeholder: no weather API in v1, no fake forecast.
-            glance.addView(tv("Weather: add widget  ·  v1.1", Themes.Type.CAPTION, sub))
-            val glanceLp = LinearLayout.LayoutParams(0, -2, 1f)
-            header.addView(glance, glanceLp)
+            val hero = LinearLayout(this)
+            hero.orientation = LinearLayout.VERTICAL
+            // Soft rounded card behind the hero when tiles are glassy.
+            if (prefTileStyle() == 1) {
+                hero.background = Themes.cardBackground(this, card)
+                hero.setPadding(dp(16), dp(12), dp(16), dp(12))
+            }
+            val hour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            val greeting = when {
+                hour < 12 -> "Good morning"
+                hour < 18 -> "Good afternoon"
+                else -> "Good evening"
+            }
+            hero.addView(tv(greeting, fs(Themes.Type.TITLE), accent, true))
+            when (prefClockStyle()) {
+                1 -> { // Compact: time + date on one line.
+                    val line = if (prefs.showDateOnHome) "${timeFmt.format(now)}  ·  ${dateFmt.format(now)}"
+                        else timeFmt.format(now)
+                    hero.addView(tv(line, fs(Themes.Type.SUBTITLE), tx, true))
+                }
+                2 -> { // Date-first: big date, smaller time below.
+                    if (prefs.showDateOnHome) hero.addView(tv(dateFmt.format(now), fs(26f), tx, true))
+                    hero.addView(tv(timeFmt.format(now), fs(Themes.Type.SUBTITLE), sub))
+                }
+                else -> { // Big: huge time with the date underneath.
+                    hero.addView(tv(timeFmt.format(now), fs(48f), tx, true))
+                    if (prefs.showDateOnHome) hero.addView(tv(dateFmt.format(now), fs(Themes.Type.SUBTITLE), sub))
+                }
+            }
+            // Honest placeholder: no weather API, no fake forecast.
+            hero.addView(tv("Weather: add widget  ·  v1.2", fs(Themes.Type.CAPTION), sub))
+            val heroLp = LinearLayout.LayoutParams(0, -2, 1f)
+            heroLp.setMargins(0, 0, dp(8), 0)
+            header.addView(hero, heroLp)
         } else {
             header.addView(View(this), LinearLayout.LayoutParams(0, -2, 1f))
         }
@@ -294,16 +349,44 @@ class MainActivity : Activity() {
         header.addView(gear, gearLp)
         main.addView(header)
 
-        // ---- Search pill (with a soft outline, hidden if turned off in Settings) ----
+        // ---- Search: three styles (pill / bar / minimal), hidden if off ----
         if (prefs.searchBarOnHome) {
-            val search = TextView(this).apply {
-                text = "🔍  Search apps…"; textSize = Themes.Type.BODY; setTextColor(sub); gravity = Gravity.CENTER
-                setPadding(dp(18), dp(10), dp(18), dp(10))
-                background = Themes.pillBackground(this@MainActivity, card, Themes.withAlpha(sub, 0.25f))
-                setOnClickListener { tapHaptic(); openDrawer() }
-            }
             val searchLp = LinearLayout.LayoutParams(-1, -2); searchLp.setMargins(0, dp(12), 0, dp(4))
-            main.addView(search, searchLp)
+            when (prefSearchStyle()) {
+                1 -> { // Bar: full-width rounded-rectangle bar with a subtle outline.
+                    val search = TextView(this).apply {
+                        text = "🔍  Search apps, settings…"; textSize = fs(Themes.Type.BODY); setTextColor(sub)
+                        gravity = Gravity.START or Gravity.CENTER_VERTICAL
+                        setPadding(dp(18), dp(13), dp(18), dp(13))
+                        background = Themes.roundedBackground(this@MainActivity, 12, card, Themes.withAlpha(sub, 0.25f))
+                        setOnClickListener { tapHaptic(); openDrawer() }
+                    }
+                    main.addView(search, searchLp)
+                }
+                2 -> { // Minimal: plain text row with a thin underline, no background.
+                    val wrap = LinearLayout(this)
+                    wrap.orientation = LinearLayout.VERTICAL
+                    val search = TextView(this).apply {
+                        text = "🔍  Search apps, settings…"; textSize = fs(Themes.Type.BODY); setTextColor(sub)
+                        setPadding(dp(4), dp(8), dp(4), dp(8))
+                        setOnClickListener { tapHaptic(); openDrawer() }
+                    }
+                    wrap.addView(search)
+                    val line = View(this)
+                    line.setBackgroundColor(Themes.withAlpha(sub, 0.35f))
+                    wrap.addView(line, LinearLayout.LayoutParams(-1, dp(1)))
+                    main.addView(wrap, searchLp)
+                }
+                else -> { // Pill: soft outline pill (the v1.1 look).
+                    val search = TextView(this).apply {
+                        text = "🔍  Search apps, settings…"; textSize = fs(Themes.Type.BODY); setTextColor(sub); gravity = Gravity.CENTER
+                        setPadding(dp(18), dp(10), dp(18), dp(10))
+                        background = Themes.pillBackground(this@MainActivity, card, Themes.withAlpha(sub, 0.25f))
+                        setOnClickListener { tapHaptic(); openDrawer() }
+                    }
+                    main.addView(search, searchLp)
+                }
+            }
         }
 
         // ---- Gentle "make me default" nudge: once per app start, dismissible,
@@ -388,10 +471,12 @@ class MainActivity : Activity() {
             main.addView(hint)
         }
 
+        // Entrance: slide up + fade in (off when animations are off).
         if (prefs.animSpeed != 0) {
             val dur = if (prefs.animSpeed == 2) 120L else 250L
             main.alpha = 0f
-            main.animate().alpha(1f).setDuration(dur).start()
+            main.translationY = dp(24).toFloat()
+            main.animate().alpha(1f).translationY(0f).setDuration(dur).start()
         }
     }
 
@@ -471,7 +556,7 @@ class MainActivity : Activity() {
     }
 
     private fun sectionHeader(s: String, col: Int): TextView {
-        val t = tv(s, 13f, col, true)
+        val t = tv(s, fs(13f), col, true)
         t.setPadding(dp(4), dp(14), 0, dp(4))
         return t
     }
@@ -482,16 +567,17 @@ class MainActivity : Activity() {
         row.gravity = Gravity.CENTER_VERTICAL
         row.setPadding(dp(4), dp(7), dp(4), dp(7))
         row.minimumHeight = dp(56)
-        row.background = Themes.pressable(this, Color.TRANSPARENT, Themes.Radius.TILE, Themes.withAlpha(Themes.accent(prefs, this), 0.12f))
+        val accent = Themes.accent(prefs, this)
+        row.background = tileSurface(Themes.card(prefs, this), accent)
+        if (prefTileStyle() == 1) row.elevation = dp(4).toFloat()
         val iv = ImageView(this)
         val raw = IconPack.resolve(this, app, prefs)
-        val accent = Themes.accent(prefs, this)
         val drawable = if (raw == null) IconPack.fallbackIcon(this, app.label, accent, iconPx)
             else if (prefs.themedIcons) IconPack.shaped(this, raw, prefs.iconShape, accent, iconPx)
             else raw
         iv.setImageDrawable(drawable)
         row.addView(iv, LinearLayout.LayoutParams(iconPx, iconPx))
-        val label = tv(app.label, rowLabelSize(), tx)
+        val label = tv(app.label, fs(rowLabelSize()), tx)
         val llp = LinearLayout.LayoutParams(0, -2, 1f); llp.setMargins(dp(14), 0, 0, 0)
         row.addView(label, llp)
         val count = BadgeService.countFor(app.pkg)

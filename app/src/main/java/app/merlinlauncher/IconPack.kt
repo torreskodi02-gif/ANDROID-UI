@@ -118,7 +118,26 @@ object IconPack {
                 val r = f * 0.15f
                 path.addRoundRect(0f, 0f, f, f, r, r, Path.Direction.CW)
             }
-            else -> path.addRect(0f, 0f, f, f, Path.Direction.CW) // Square
+            3 -> path.addRect(0f, 0f, f, f, Path.Direction.CW) // Square
+            4 -> { // Teardrop: sharp point at the top, round body below.
+                path.moveTo(f / 2, 0f)
+                path.quadTo(f, f * 0.35f, f, f * 0.62f)
+                path.quadTo(f, f, f / 2, f)
+                path.quadTo(0f, f, 0f, f * 0.62f)
+                path.quadTo(0f, f * 0.35f, f / 2, 0f)
+                path.close()
+            }
+            5 -> { // Hexagon: 6-point polygon, pointy top and bottom.
+                val cx = f / 2; val cy = f / 2; val r = f / 2
+                for (i in 0 until 6) {
+                    val a = Math.PI / 3 * i - Math.PI / 2
+                    val x = (cx + r * Math.cos(a)).toFloat()
+                    val y = (cy + r * Math.sin(a)).toFloat()
+                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
+                }
+                path.close()
+            }
+            else -> path.addRect(0f, 0f, f, f, Path.Direction.CW) // Square (fallback)
         }
         // Soft drop shadow: two translucent layers under the tile.
         val shadow = Paint(Paint.ANTI_ALIAS_FLAG)

@@ -144,7 +144,27 @@ class SettingsActivity : Activity() {
             else "Merlin is not your default Home yet — tap to set it.",
             if (isDefault) "Current default" else "Set as default") { requestDefaultHome() }
 
-        // ---------- (1) Look & Feel ----------
+        // ---------- (1) Looks & Personalities ----------
+        // Six personalities — each one visibly changes Home and the drawer.
+        // Tapping a card applies it right away (via Personalities.apply when
+        // that object exists, otherwise the built-in fallback below).
+        section("Looks & Personalities")
+        personalityCardsRow()
+        buttonRow("Surprise me", "Pick a random personality — different from the one you have now.", "🎲 Surprise me") {
+            val options = PERSONALITIES.indices.filter { it != prefs.personality }
+            val pick = options.random()
+            applyPersonality(pick)
+            Toast.makeText(this, "Now rocking ${PERSONALITIES[pick].first}!", Toast.LENGTH_SHORT).show()
+            render()
+        }
+        chipsRow("Clock style", listOf("Big", "Compact", "Date-first"), prefs.clockStyle) { prefs.clockStyle = it; render() }
+        chipsRow("Search bar style", listOf("Pill", "Bar", "Minimal"), prefs.searchStyle) { prefs.searchStyle = it; render() }
+        chipsRow("App tile style", listOf("Flat", "Glassy card", "Bold outline"), prefs.tileStyle) { prefs.tileStyle = it; render() }
+        chipsRow("Drawer style", listOf("Grid", "List rows"), prefs.drawerStyle) { prefs.drawerStyle = it; render() }
+        chipsRow("Text size", listOf("Small", "Normal", "Large"), prefs.fontScale) { prefs.fontScale = it; render() }
+        stepperRow("Home dim", prefs.homeDim, 0, 100, 10) { prefs.homeDim = it }
+
+        // ---------- (2) Look & Feel ----------
         section("Look & Feel")
         chipsRow("Theme palette", Themes.PALETTES.map { it.name }, prefs.theme) { prefs.theme = it; render() }
         chipsRow("Theme mode", listOf("Auto", "Light", "Dark"), prefs.themeMode) { prefs.themeMode = it; render() }
@@ -156,7 +176,7 @@ class SettingsActivity : Activity() {
             }
         }
 
-        // ---------- (2) Home ----------
+        // ---------- (3) Home ----------
         section("Home")
         chipsRow("Home style", listOf("Grid", "List"), prefs.homeStyle) { prefs.homeStyle = it; render() }
         pickerRow("Preset", "Applies a full bundle of settings at once.", listOf("Minimal", "Classic", "Dense", "One-handed"), listOf("Minimal", "Classic", "Dense", "One-handed").indexOf(prefs.preset)) {
@@ -166,18 +186,18 @@ class SettingsActivity : Activity() {
         }
         switchRow("Lock layout", "Blocks hiding apps and moving Home items until unlocked.", prefs.lockLayout) { prefs.lockLayout = it }
 
-        // ---------- (3) Home grid ----------
+        // ---------- (4) Home grid ----------
         section("Home grid")
         stepperRow("Grid columns", prefs.gridCols, 3, 6) { prefs.gridCols = it }
         stepperRow("Grid rows", prefs.gridRows, 3, 7) { prefs.gridRows = it }
 
-        // ---------- (4) Icons ----------
+        // ---------- (5) Icons ----------
         section("Icons")
         chipsRow("Icon size", listOf("Small", "Medium", "Large"), prefs.iconSize) { prefs.iconSize = it }
         switchRow("Show app labels", "Labels under Home and drawer icons.", prefs.showLabels) { prefs.showLabels = it }
         chipsRow("Label size", listOf("Small", "Medium", "Large"), prefs.labelSize) { prefs.labelSize = it }
 
-        // ---------- (5) Drawer ----------
+        // ---------- (6) Drawer ----------
         section("Drawer")
         chipsRow("Drawer sort", listOf("A–Z", "Most used", "Category"), prefs.drawerSort) { prefs.drawerSort = it }
         stepperRow("Drawer columns", prefs.drawerCols, 3, 6) { prefs.drawerCols = it }
@@ -196,20 +216,20 @@ class SettingsActivity : Activity() {
                 }.show()
         }
 
-        // ---------- (6) Dock ----------
+        // ---------- (7) Dock ----------
         section("Dock")
         switchRow("Show dock", "App row at the bottom of Home.", prefs.dockShow) { prefs.dockShow = it }
         stepperRow("Dock apps", prefs.dockCount, 3, 7) { prefs.dockCount = it }
         chipsRow("Dock style", listOf("Floating", "Full-width bar", "Transparent"), prefs.dockStyle) { prefs.dockStyle = it }
 
-        // ---------- (7) Home screen ----------
+        // ---------- (8) Home screen ----------
         section("Home screen")
         switchRow("Search bar on Home", "Search box at the top of the Home screen.", prefs.searchBarOnHome) { prefs.searchBarOnHome = it }
         switchRow("At a Glance", "Clock, date and weather summary at the top of Home.", prefs.showAtAGlance) { prefs.showAtAGlance = it }
         switchRow("Show date on Home", "Date line under the At-a-Glance clock.", prefs.showDateOnHome) { prefs.showDateOnHome = it }
         chipsRow("Clock format", listOf("12-hour", "24-hour"), if (prefs.clockFormat24) 1 else 0) { prefs.clockFormat24 = it == 1 }
 
-        // ---------- (8) Icons & Folders ----------
+        // ---------- (9) Icons & Folders ----------
         section("Icons & Folders")
         pickerRow("Icon pack", "Installed icon packs (ADW / Nova themes).", listOf("None") + IconPack.listIconPacks(this).map { it.label },
             run {
@@ -221,11 +241,11 @@ class SettingsActivity : Activity() {
             prefs.iconPack = if (it == 0) "" else packs[it - 1].pkg
             render()
         }
-        chipsRow("Icon shape", listOf("Circle", "Squircle", "Rounded", "Square"), prefs.iconShape) { prefs.iconShape = it }
+        chipsRow("Icon shape", listOf("Circle", "Squircle", "Rounded", "Square", "Teardrop", "Hexagon"), prefs.iconShape) { prefs.iconShape = it }
         switchRow("Themed icons", "Mask unthemed icons into the chosen shape on an accent-tinted background.", prefs.themedIcons) { prefs.themedIcons = it }
         buttonRow("Folders", "Cover folders arrive in v1.1. For now, long-press any app to add it to Home or Favourites.", "OK") { }
 
-        // ---------- (9) Gestures ----------
+        // ---------- (10) Gestures ----------
         section("Gestures")
         chipsRow("Swipe down", listOf("Search", "App drawer"), prefs.gestureSwipeDown) { prefs.gestureSwipeDown = it }
         switchRow("Double-tap to lock", "Double-tap empty Home space to lock the screen. Needs device-admin — grant it below.", prefs.doubleTapLock) { prefs.doubleTapLock = it }
@@ -244,13 +264,13 @@ class SettingsActivity : Activity() {
             }
         }
 
-        // ---------- (10) Gestures & feel ----------
+        // ---------- (11) Gestures & feel ----------
         section("Gestures & feel")
         switchRow("Swipe up for app drawer", "Swipe up from the bottom of Home to open the app drawer.", prefs.swipeUpForDrawer) { prefs.swipeUpForDrawer = it }
         switchRow("Haptics", "Small vibration on taps and long-presses.", prefs.haptics) { prefs.haptics = it }
         chipsRow("Animation speed", listOf("Off", "Normal", "Fast"), prefs.animSpeed) { prefs.animSpeed = it }
 
-        // ---------- (11) Notifications ----------
+        // ---------- (12) Notifications ----------
         section("Notifications")
         chipsRow("Badges", listOf("Off", "Dot", "Count"), prefs.badges) { prefs.badges = it }
         buttonRow("Notification access", "Required for badges. Grants counts of active notifications only — content is never read.", "Grant notification access") {
@@ -265,11 +285,11 @@ class SettingsActivity : Activity() {
             else Toast.makeText(this, "Shade service not granted yet — use the button above", Toast.LENGTH_LONG).show()
         }
 
-        // ---------- (12) Feed ----------
+        // ---------- (13) Feed ----------
         section("Feed")
         switchRow("Show Feed", "Swipe left on Home for notes, recent apps and favourites.", prefs.feedShow) { prefs.feedShow = it }
 
-        // ---------- (13) Backup ----------
+        // ---------- (14) Backup ----------
         section("Backup")
         buttonRow("Export backup", "Saves all settings, favourites, hidden apps and notes as JSON.", "Export") {
             val i = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
@@ -296,7 +316,7 @@ class SettingsActivity : Activity() {
             }
         }
 
-        // ---------- (14) About ----------
+        // ---------- (15) About ----------
         section("About")
         infoRow("Merlin Launcher", "Version 1.0.0 · app.merlinlauncher")
         infoRow("Device", "Built for Motorola One Action — 6.3\" 1080×2520, 4 GB RAM, Android 11 (last update). Target API 30, min API 28.")
@@ -310,7 +330,7 @@ class SettingsActivity : Activity() {
         infoRow("Not in v1 (planned for v1.1)",
             "Widget host · Shutters (widget preview on icon swipe) · Cover folders · Auto-backup schedule · Real weather.")
 
-        // ---------- (15) Reset ----------
+        // ---------- (16) Reset ----------
         section("Reset")
         buttonRow("Reset all settings", "Restores every setting to its default. Favourites, hidden apps, Home apps and notes are kept.", "Reset all settings") {
             AlertDialog.Builder(this).setTitle("Reset all settings?")
@@ -469,22 +489,22 @@ class SettingsActivity : Activity() {
         addRow(title, "", wrap)
     }
 
-    private fun stepperRow(title: String, value: Int, min: Int, max: Int, onSet: (Int) -> Unit) {
+    private fun stepperRow(title: String, value: Int, min: Int, max: Int, step: Int = 1, onSet: (Int) -> Unit) {
         var cur = value
         val row = LinearLayout(this)
         row.orientation = LinearLayout.HORIZONTAL
         row.gravity = Gravity.CENTER_VERTICAL
         val card = Themes.card(prefs, this)
         val tx = Themes.text(prefs, this)
-        val valueView = tv(cur.toString(), 16f, tx, true)
+        val valueView = tv(if (step > 1) "$cur%" else cur.toString(), 16f, tx, true)
         valueView.gravity = Gravity.CENTER
         val minus = btn("−", card, tx) {
-            cur = (cur - 1).coerceAtLeast(min)
-            onSet(cur); valueView.text = cur.toString()
+            cur = (cur - step).coerceAtLeast(min)
+            onSet(cur); valueView.text = if (step > 1) "$cur%" else cur.toString()
         }
         val plus = btn("+", card, tx) {
-            cur = (cur + 1).coerceAtMost(max)
-            onSet(cur); valueView.text = cur.toString()
+            cur = (cur + step).coerceAtMost(max)
+            onSet(cur); valueView.text = if (step > 1) "$cur%" else cur.toString()
         }
         row.addView(minus)
         row.addView(valueView, LinearLayout.LayoutParams(0, -2, 1f))
@@ -509,5 +529,108 @@ class SettingsActivity : Activity() {
 
     private fun infoRow(title: String, text: String) {
         addRow(title, text, LinearLayout(this))
+    }
+
+    // ---- Looks & Personalities (v1.2) ----
+    // Name, one-line vibe, and (background, card, accent) preview colours.
+    // These hex values are the same ones Personalities.kt uses; they are kept
+    // here so the cards render even if that file is not present.
+    private val PERSONALITIES = listOf(
+        Triple("Minimal", "Clean, calm, nothing in the way.", Triple("#101014", "#1C1C22", "#EDEDF2")),
+        Triple("Sunset Pop", "Warm and bold, like golden hour.", Triple("#1C0F0C", "#2B1914", "#FF7A59")),
+        Triple("Neon Night", "Dark, electric, glowing accents.", Triple("#0D1117", "#171D27", "#7DD3FC")),
+        Triple("Ocean Glass", "Cool blues, smooth and glassy.", Triple("#12163F", "#1C2160", "#7C84FF")),
+        Triple("Paper Day", "Bright, light, easy on the eyes.", Triple("#F3F1FA", "#FFFFFF", "#3B30F0")),
+        Triple("Playful", "Fresh green, fun and friendly.", Triple("#0C1A14", "#14281E", "#4ADE80"))
+    )
+    // Fallback theme for each personality: (Themes.PALETTES index, themeMode).
+    // 0 Midnight, 1 Cobalt, 2 Ember, 3 Forest, 4 Paper, 5 Mono; mode 1 Light, 2 Dark.
+    private val PERSONALITY_THEME = listOf(5 to 2, 2 to 2, 0 to 2, 1 to 2, 4 to 1, 3 to 2)
+
+    /** Applies personality [index] via Personalities.apply (the full bundle).
+     *  Falls back to palette/mode only if that call throws. Always records
+     *  prefs.personality. */
+    private fun applyPersonality(index: Int) {
+        val i = index.coerceIn(0, PERSONALITIES.size - 1)
+        try {
+            Personalities.apply(prefs, i)
+        } catch (e: Exception) {
+            val (themeIdx, mode) = PERSONALITY_THEME[i]
+            val e2 = prefs.p.edit()
+            e2.putInt("theme", themeIdx); e2.putInt("themeMode", mode)
+            e2.putInt("accent", 0); e2.putBoolean("dynamicColor", false)
+            e2.apply()
+        }
+        prefs.personality = i
+    }
+
+    /** Display data for one personality card: (name, vibe, (bg, card, accent)).
+     *  Read straight from Personalities.all() so the dots and vibes always
+     *  match the personality definitions; falls back to the built-in table. */
+    private fun personalityDisplay(index: Int): Triple<String, String, Triple<String, String, String>> {
+        return try {
+            val item = Personalities.all().getOrNull(index) ?: return PERSONALITIES[index]
+            Triple(item.name, item.vibe, Triple(item.previewBg, item.previewCard, item.previewAccent))
+        } catch (e: Exception) {
+            PERSONALITIES[index]
+        }
+    }
+
+    /** One personality card: name, vibe, three colour dots, accent outline
+     *  + checkmark when it is the current personality. */
+    private fun personalityCard(index: Int): LinearLayout {
+        val (name, vibe, colors) = personalityDisplay(index)
+        val selected = prefs.personality == index
+        val card = LinearLayout(this)
+        card.orientation = LinearLayout.VERTICAL
+        card.setPadding(dp(14), dp(12), dp(14), dp(12))
+        card.background = if (selected) {
+            Themes.roundedBackground(this, Themes.Radius.CARD, Themes.card(prefs, this), Themes.accent(prefs, this), 2)
+        } else {
+            Themes.cardBackground(this, Themes.card(prefs, this))
+        }
+        val nameRow = LinearLayout(this)
+        nameRow.orientation = LinearLayout.HORIZONTAL
+        nameRow.gravity = Gravity.CENTER_VERTICAL
+        nameRow.addView(tv(name, 15f, Themes.text(prefs, this), true), LinearLayout.LayoutParams(0, -2, 1f))
+        if (selected) nameRow.addView(tv("✓", 15f, Themes.accent(prefs, this), true))
+        card.addView(nameRow)
+        val vibeView = tv(vibe, 12f, Themes.sub(prefs, this))
+        vibeView.setPadding(0, dp(2), 0, dp(8))
+        card.addView(vibeView)
+        val dots = LinearLayout(this)
+        dots.orientation = LinearLayout.HORIZONTAL
+        for (hex in listOf(colors.first, colors.second, colors.third)) {
+            val dot = android.view.View(this)
+            val g = GradientDrawable()
+            g.shape = GradientDrawable.OVAL
+            g.setColor(Color.parseColor(hex))
+            dot.background = g
+            val lp = LinearLayout.LayoutParams(dp(14), dp(14))
+            lp.setMargins(0, 0, dp(6), 0)
+            dots.addView(dot, lp)
+        }
+        card.addView(dots)
+        card.setOnClickListener { applyPersonality(index); render() }
+        return card
+    }
+
+    /** Two-column grid of the six personality cards. Registered as a
+     *  searchable row so "personality" / a personality name finds it. */
+    private fun personalityCardsRow() {
+        val wrap = LinearLayout(this)
+        wrap.orientation = LinearLayout.VERTICAL
+        for (r in 0 until 3) {
+            val row = LinearLayout(this)
+            for (c in 0 until 2) {
+                val idx = r * 2 + c
+                val lp = LinearLayout.LayoutParams(0, -2, 1f)
+                lp.setMargins(dp(3), dp(3), dp(3), dp(3))
+                row.addView(personalityCard(idx), lp)
+            }
+            wrap.addView(row)
+        }
+        container.addView(wrap)
+        rows.add("Looks & Personalities Minimal Sunset Pop Neon Night Ocean Glass Paper Day Playful personality looks" to wrap)
     }
 }

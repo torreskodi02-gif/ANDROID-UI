@@ -1,4 +1,4 @@
-# Merlin Launcher v1.1.0
+# Merlin Launcher v1.2.0
 
 A native Kotlin Android launcher built for Kodi's **Motorola One Action**
 (6.3" 1080×2520 21:9, 4 GB RAM, Exynos 9609, Android 11 — its last update).
@@ -22,6 +22,26 @@ Always. The first-run wizard walks you through picking Grid or List,
 a preset, and making Merlin your default Home. You can also set it
 anytime in Merlin Settings ("Set Merlin as default launcher" at the
 top) or in system Settings > Apps > Default apps > Home app.
+
+## What v1.2 adds — Personalities (the final build)
+
+Every user has their own personality, so the launcher does too:
+
+- **Six Personalities, one tap each** — Minimal, Sunset Pop, Neon Night,
+  Ocean Glass, Paper Day, Playful. Each one restyles the *whole*
+  launcher at once: colours, icon shape, grid density, labels, dock,
+  clock, search, tiles, animations. Pick one in Settings > Looks &
+  Personalities (preview cards show the colours first) or tap
+  "Surprise me" and let it pick for you.
+- **A home screen that looks different** — a greeting by time of day
+  ("Good morning / afternoon / evening"), three clock styles (Big,
+  Compact, Date-first), three search bar styles (Pill, Bar, Minimal),
+  three tile styles (Flat, Glassy card, Bold outline), text size,
+  home dim, and a slide-up entrance animation.
+- **Two new icon shapes** — Teardrop and Hexagon, alongside Circle,
+  Squircle, Rounded and Square. The drawer can be a grid or list rows.
+- **More Settings** — clock style, search bar style, tile style, drawer
+  style, text size, home dim, all live-applying.
 
 ## What v1.1 adds (on top of v1.0)
 
@@ -89,7 +109,7 @@ top) or in system Settings > Apps > Default apps > Home app.
 - Badges need Notification access granted in system Settings.
 - No widget host yet, so no weather widget and no At-a-Glance weather.
 
-## Not in v1.1 (planned next)
+## Not in v1.2 (planned next)
 
 Widget host · Shutters (widget preview on icon swipe) · Cover folders ·
 Auto-backup schedule · Real weather.
@@ -115,6 +135,7 @@ first-run wizard or from Merlin Settings.
 | `…/MainActivity.kt` | Home: Grid + List, Feed, dock, gestures, double-tap lock, default-home nudge |
 | `…/Onboarding.kt` | First-run welcome wizard (style, preset, make-me-default) |
 | `…/DefaultHome.kt` | RoleManager default-home request + is-default check |
+| `…/Personalities.kt` | 6 one-tap full looks (Minimal, Sunset Pop, Neon Night, Ocean Glass, Paper Day, Playful) |
 | `…/Drawer.kt` | DrawerActivity: search, sorts, category sections |
 | `…/Settings.kt` | SettingsActivity: 10 sections, searchable, no dead toggles |
 | `…/BadgeService.kt` | NotificationListenerService, counts only |

@@ -26,6 +26,14 @@ class Prefs(ctx: Context) {
     var clockFormat24: Boolean get() = p.getBoolean("clockFormat24", false); set(v) = p.edit().putBoolean("clockFormat24", v).apply() // false = 12-hour, true = 24-hour
     var swipeUpForDrawer: Boolean get() = p.getBoolean("swipeUpForDrawer", true); set(v) = p.edit().putBoolean("swipeUpForDrawer", v).apply()
     var haptics: Boolean get() = p.getBoolean("haptics", true); set(v) = p.edit().putBoolean("haptics", v).apply()
+    // ---- v1.2 additions: personalities + looks (defaults preserve v1.1 behaviour) ----
+    var personality: Int get() = p.getInt("personality", 0); set(v) = p.edit().putInt("personality", v.coerceIn(0, 5)).apply() // 0 Minimal, 1 Sunset Pop, 2 Neon Night, 3 Ocean Glass, 4 Paper Day, 5 Playful
+    var clockStyle: Int get() = p.getInt("clockStyle", 0); set(v) = p.edit().putInt("clockStyle", v.coerceIn(0, 2)).apply() // 0 Big, 1 Compact, 2 Date-first
+    var searchStyle: Int get() = p.getInt("searchStyle", 0); set(v) = p.edit().putInt("searchStyle", v.coerceIn(0, 2)).apply() // 0 Pill, 1 Bar, 2 Minimal
+    var fontScale: Int get() = p.getInt("fontScale", 1); set(v) = p.edit().putInt("fontScale", v.coerceIn(0, 2)).apply() // 0 Small, 1 Normal, 2 Large
+    var tileStyle: Int get() = p.getInt("tileStyle", 0); set(v) = p.edit().putInt("tileStyle", v.coerceIn(0, 2)).apply() // 0 Flat, 1 Glassy card, 2 Bold outline
+    var drawerStyle: Int get() = p.getInt("drawerStyle", 0); set(v) = p.edit().putInt("drawerStyle", v.coerceIn(0, 1)).apply() // 0 Grid, 1 List rows
+    var homeDim: Int get() = p.getInt("homeDim", 0); set(v) = p.edit().putInt("homeDim", v.coerceIn(0, 100)).apply() // 0-100 percent
     var dockShow: Boolean get() = p.getBoolean("dockShow", true); set(v) = p.edit().putBoolean("dockShow", v).apply()
     var dockCount: Int get() = p.getInt("dockCount", 5); set(v) = p.edit().putInt("dockCount", v.coerceIn(3, 7)).apply()
     var drawerSort: Int get() = p.getInt("drawerSort", 0); set(v) = p.edit().putInt("drawerSort", v).apply() // 0 A-Z, 1 Most-used, 2 Category
@@ -107,7 +115,8 @@ class Prefs(ctx: Context) {
             "iconSize", "showLabels", "labelSize", "dockShow", "dockCount", "dockStyle", "drawerSort",
             "drawerCols", "iconPack", "iconShape", "themedIcons", "badges", "gestureSwipeDown",
             "swipeUpForDrawer", "doubleTapLock", "lockLayout", "haptics", "animSpeed", "feedShow",
-            "searchBarOnHome", "showAtAGlance", "showDateOnHome", "clockFormat24", "preset")) {
+            "searchBarOnHome", "showAtAGlance", "showDateOnHome", "clockFormat24", "preset",
+            "personality", "clockStyle", "searchStyle", "fontScale", "tileStyle", "drawerStyle", "homeDim")) {
             e.remove(k)
         }
         e.apply()
@@ -120,7 +129,7 @@ class Prefs(ctx: Context) {
             "iconSize", "showLabels", "labelSize", "dockShow", "dockCount", "dockStyle", "drawerSort", "drawerCols", "iconPack",
             "iconShape", "themedIcons", "badges", "gestureSwipeDown", "swipeUpForDrawer", "doubleTapLock", "lockLayout",
             "haptics", "animSpeed", "feedShow", "searchBarOnHome", "showAtAGlance", "showDateOnHome", "clockFormat24",
-            "preset", "notes")
+            "preset", "notes", "personality", "clockStyle", "searchStyle", "fontScale", "tileStyle", "drawerStyle", "homeDim")
         for (k in keys) {
             val v = p.all[k] ?: continue
             when (v) {

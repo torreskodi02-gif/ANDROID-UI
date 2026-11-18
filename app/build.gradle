@@ -24,7 +24,7 @@ android {
         targetSdk 30
         // versionCode comes from CI (VC = 10000 + run number); 1 for local builds.
         versionCode vc.toInteger()
-        versionName '1.1.0'
+        versionName '1.2.0'
     }
 
     buildTypes {

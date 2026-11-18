@@ -47,6 +47,30 @@ class DrawerActivity : Activity() {
         if (bold) setTypeface(typeface, Typeface.BOLD)
     }
 
+    // ---- v1.2 prefs, read via raw keys so this file compiles even while the
+    // Prefs agent is still adding the typed accessors (same keys/defaults). ----
+    private fun prefInt(key: String, def: Int) = prefs.p.getInt(key, def)
+    private fun prefFontScale() = prefInt("fontScale", 1) // 0 small, 1 normal, 2 large
+    private fun prefTileStyle() = prefInt("tileStyle", 0) // 0 flat, 1 glassy card, 2 bold outline
+    private fun prefDrawerStyle() = prefInt("drawerStyle", 0) // 0 grid, 1 list rows
+
+    /** Font scale: small = -2sp, normal = base, large = +3sp. */
+    private fun fs(base: Float) = base + when (prefFontScale()) { 0 -> -2f; 2 -> 3f; else -> 0f }
+    private fun rowLabelSize() = fs(listOf(14f, 16f, 18f)[prefs.labelSize.coerceIn(0, 2)])
+    private fun tileLabelSize() = fs(listOf(10f, 12f, 14f)[prefs.labelSize.coerceIn(0, 2)])
+
+    /** Tile surface for the current tileStyle (same as Home). */
+    private fun tileSurface(card: Int, accent: Int): android.graphics.drawable.Drawable {
+        val ripple = Themes.withAlpha(accent, 0.16f)
+        return when (prefTileStyle()) {
+            1 -> Themes.pressable(this, card, Themes.Radius.TILE, ripple)
+            2 -> Themes.rippleDrawable(this, ripple,
+                Themes.roundedBackground(this, Themes.Radius.TILE, Color.TRANSPARENT,
+                    Themes.withAlpha(accent, 0.55f), 2), Themes.Radius.TILE)
+            else -> Themes.pressable(this, Color.TRANSPARENT, Themes.Radius.TILE, ripple)
+        }
+    }
+
     override fun onCreate(s: Bundle?) {
         super.onCreate(s)
         prefs = Prefs(this)
@@ -81,7 +105,7 @@ class DrawerActivity : Activity() {
         search.setSelection(search.text.length)
         search.setTextColor(tx)
         search.setHintTextColor(sub)
-        search.textSize = 15f
+        search.textSize = fs(15f)
         search.background = Themes.pillBackground(this, card, Themes.withAlpha(sub, 0.25f))
         search.setPadding(dp(20), dp(13), dp(46), dp(13))
         search.addTextChangedListener(object : TextWatcher {
@@ -107,7 +131,7 @@ class DrawerActivity : Activity() {
         clearRef = clear
         main.addView(searchWrap, LinearLayout.LayoutParams(-1, -2))
 
-        val countView = tv("", Themes.Type.CAPTION, sub)
+        val countView = tv("", fs(Themes.Type.CAPTION), sub)
         countView.setPadding(dp(4), dp(10), 0, dp(2))
         main.addView(countView)
 
@@ -176,6 +200,8 @@ class DrawerActivity : Activity() {
         countView.text = if (filtered.isEmpty() && q.isNotEmpty()) "No apps found" else "All apps · ${filtered.size} of ${apps.size}"
         val iconPx = dp(listOf(48, 56, 64)[prefs.iconSize.coerceIn(0, 2)])
         val cols = prefs.drawerCols
+        // v1.2: list-rows drawer mode — rows instead of grid tiles.
+        val rows = prefDrawerStyle() == 1
 
         if (filtered.isEmpty()) {
             body.addView(emptyState(tx, sub, accent))
@@ -185,16 +211,20 @@ class DrawerActivity : Activity() {
 
         when {
             q.isEmpty() && prefs.drawerSort == 2 -> {
-                // Category sections with headers, one grid per category.
+                // Category sections with headers, one grid (or row list) per category.
                 val cats = listOf("Communication", "Media", "Social", "Games", "Tools", "Other")
                 for (cat in cats) {
                     val catApps = filtered.filter { Apps.categoryOf(it) == cat }
                     if (catApps.isEmpty()) continue
                     body.addView(sectionHeader(cat, tx, accent))
-                    val catGrid = GridLayout(this)
-                    catGrid.columnCount = cols
-                    addGridRows(catGrid, catApps, iconPx, cols)
-                    body.addView(catGrid)
+                    if (rows) {
+                        addRows(body, catApps, iconPx, tx, accent)
+                    } else {
+                        val catGrid = GridLayout(this)
+                        catGrid.columnCount = cols
+                        addGridRows(catGrid, catApps, iconPx, cols)
+                        body.addView(catGrid)
+                    }
                 }
                 updateScroller(false)
             }
@@ -209,34 +239,49 @@ class DrawerActivity : Activity() {
                     if (letter != lastLetter) {
                         lastLetter = letter
                         body.addView(sectionHeader(letter, tx, accent, letterTag = letter))
-                        grid = GridLayout(this)
-                        grid.columnCount = cols
-                        body.addView(grid)
+                        if (!rows) {
+                            grid = GridLayout(this)
+                            grid.columnCount = cols
+                            body.addView(grid)
+                        }
                         idx = 0
                     }
-                    val tile = appTile(a, iconPx, tx, accent)
-                    val lp = GridLayout.LayoutParams(GridLayout.spec(idx / cols, 1f), GridLayout.spec(idx % cols, 1f))
-                    lp.width = 0
-                    lp.setMargins(0, dp(8), 0, 0)
-                    grid!!.addView(tile, lp)
-                    idx++
+                    if (rows) {
+                        body.addView(drawerRow(a, iconPx, tx, accent))
+                    } else {
+                        val tile = appTile(a, iconPx, tx, accent)
+                        val lp = GridLayout.LayoutParams(GridLayout.spec(idx / cols, 1f), GridLayout.spec(idx % cols, 1f))
+                        lp.width = 0
+                        lp.setMargins(0, dp(8), 0, 0)
+                        grid!!.addView(tile, lp)
+                        idx++
+                    }
                 }
-                updateScroller(true)
+                // Alphabet strip only makes sense in grid A–Z mode.
+                updateScroller(!rows)
             }
             q.isEmpty() && prefs.drawerSort == 1 -> {
                 body.addView(sectionHeader("★  Most used", tx, accent))
-                val grid = GridLayout(this)
-                grid.columnCount = cols
-                addGridRows(grid, filtered, iconPx, cols)
-                body.addView(grid)
+                if (rows) {
+                    addRows(body, filtered, iconPx, tx, accent)
+                } else {
+                    val grid = GridLayout(this)
+                    grid.columnCount = cols
+                    addGridRows(grid, filtered, iconPx, cols)
+                    body.addView(grid)
+                }
                 updateScroller(false)
             }
             else -> {
-                // Searching: flat grid, no section headers.
-                val grid = GridLayout(this)
-                grid.columnCount = cols
-                addGridRows(grid, filtered, iconPx, cols)
-                body.addView(grid)
+                // Searching: flat grid (or rows), no section headers.
+                if (rows) {
+                    addRows(body, filtered, iconPx, tx, accent)
+                } else {
+                    val grid = GridLayout(this)
+                    grid.columnCount = cols
+                    addGridRows(grid, filtered, iconPx, cols)
+                    body.addView(grid)
+                }
                 updateScroller(false)
             }
         }
@@ -257,6 +302,45 @@ class DrawerActivity : Activity() {
         }
     }
 
+    /** v1.2 list-rows drawer mode: one row per app (icon + label + star). */
+    private fun addRows(body: LinearLayout, list: List<AppInfo>, iconPx: Int, tx: Int, accent: Int) {
+        for (a in list) body.addView(drawerRow(a, iconPx, tx, accent))
+    }
+
+    private fun drawerRow(app: AppInfo, iconPx: Int, tx: Int, accent: Int): LinearLayout {
+        val row = LinearLayout(this)
+        row.orientation = LinearLayout.HORIZONTAL
+        row.gravity = Gravity.CENTER_VERTICAL
+        row.setPadding(dp(4), dp(8), dp(4), dp(8))
+        row.minimumHeight = dp(60)
+        row.background = tileSurface(Themes.card(prefs, this), accent)
+        if (prefTileStyle() == 1) row.elevation = dp(4).toFloat()
+        val iv = ImageView(this)
+        val raw = IconPack.resolve(this, app, prefs)
+        val drawable = when {
+            raw == null -> IconPack.fallbackIcon(this, app.label, accent, iconPx)
+            prefs.themedIcons -> IconPack.tile(this, raw, accent, iconPx)
+            else -> raw
+        }
+        iv.setImageDrawable(drawable)
+        row.addView(iv, LinearLayout.LayoutParams(iconPx, iconPx))
+        val label = tv(app.label, rowLabelSize(), tx)
+        val llp = LinearLayout.LayoutParams(0, -2, 1f); llp.setMargins(dp(14), 0, 0, 0)
+        row.addView(label, llp)
+        if (prefs.favourites().contains(app.pkg)) {
+            row.addView(tv("★", fs(Themes.Type.BODY), Color.parseColor("#F5A524"), true))
+        }
+        val count = BadgeService.countFor(app.pkg)
+        if (prefs.badges > 0 && count > 0) {
+            val b = tv(if (prefs.badges == 2) count.toString() else "●", fs(13f), Color.parseColor("#E5484D"), true)
+            b.setPadding(dp(8), 0, dp(4), 0)
+            row.addView(b)
+        }
+        row.setOnClickListener { Apps.launch(this, app, prefs) }
+        row.setOnLongClickListener { Apps.showAppMenu(this, app, prefs) { apps = Apps.loadApps(this, prefs); render() }; true }
+        return row
+    }
+
     /** Section header: accent dot, bold title, hairline divider. When
      *  [letterTag] is set the row is a fast-scroller anchor for that letter. */
     private fun sectionHeader(title: String, tx: Int, accent: Int, letterTag: String? = null): LinearLayout {
@@ -273,7 +357,7 @@ class DrawerActivity : Activity() {
         val dotLp = LinearLayout.LayoutParams(dp(8), dp(8))
         dotLp.setMargins(0, 0, dp(8), 0)
         row.addView(dot, dotLp)
-        row.addView(tv(title, Themes.Type.CAPTION + 1f, tx, true))
+        row.addView(tv(title, fs(Themes.Type.CAPTION + 1f), tx, true))
         val line = View(this)
         line.setBackgroundColor(Themes.divider(prefs, this))
         val lineLp = LinearLayout.LayoutParams(0, dp(1), 1f)
@@ -288,14 +372,14 @@ class DrawerActivity : Activity() {
         wrap.orientation = LinearLayout.VERTICAL
         wrap.gravity = Gravity.CENTER_HORIZONTAL
         wrap.setPadding(dp(24), dp(48), dp(24), dp(16))
-        val icon = tv("🔍", 40f, sub)
+        val icon = tv("🔍", fs(40f), sub)
         icon.gravity = Gravity.CENTER
         wrap.addView(icon)
-        val title = tv("No apps match", 18f, tx, true)
+        val title = tv("No apps match", fs(18f), tx, true)
         title.gravity = Gravity.CENTER
         title.setPadding(0, dp(16), 0, 0)
         wrap.addView(title)
-        val hint = tv("Try another search — check the spelling, or clear the search to see all your apps.", Themes.Type.BODY, sub)
+        val hint = tv("Try another search — check the spelling, or clear the search to see all your apps.", fs(Themes.Type.BODY), sub)
         hint.gravity = Gravity.CENTER
         hint.setPadding(0, dp(8), 0, 0)
         wrap.addView(hint)
@@ -363,14 +447,14 @@ class DrawerActivity : Activity() {
         val col = LinearLayout(this)
         col.orientation = LinearLayout.VERTICAL
         col.gravity = Gravity.CENTER_HORIZONTAL
-        // Larger touch target with a friendly press ripple.
+        // Larger touch target with a friendly press ripple, in the tile style.
         col.setPadding(dp(2), dp(8), dp(2), dp(8))
         col.minimumHeight = dp(84)
-        col.background = Themes.pressable(this, Color.TRANSPARENT, Themes.Radius.TILE,
-            Themes.withAlpha(accent, 0.16f))
+        col.background = tileSurface(Themes.card(prefs, this), accent)
+        if (prefTileStyle() == 1) col.elevation = dp(4).toFloat()
         col.addView(frame)
         if (prefs.showLabels) {
-            val label = tv(app.label, Themes.Type.CAPTION, tx)
+            val label = tv(app.label, tileLabelSize(), tx)
             label.gravity = Gravity.CENTER
             label.maxLines = 1
             col.addView(label)
