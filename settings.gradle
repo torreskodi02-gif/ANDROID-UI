@@ -1,1 +1,23 @@
+// Merlin Launcher — project settings.
+// pluginManagement lists where Gradle finds the Android + Kotlin plugins.
+// Without it, the CI build failed (run #3) with:
+//   Plugin [id: 'com.android.application', version: '8.5.2'] was not found
+//   ... could not resolve plugin artifact ... Searched in: Gradle Central Plugin Repository
+// Adding google() lets Gradle resolve the AGP plugin marker straight from
+// Google's Maven repo instead of only via the Plugin Portal.
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        google()
+        mavenCentral()
+    }
+}
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+rootProject.name = 'merlin-launcher'
 include ':app'
