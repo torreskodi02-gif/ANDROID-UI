@@ -26,9 +26,10 @@ jobs:
           gradle-version: 8.7
       # versionCode is 10000 + run number, so Android always accepts this
       # APK as an update to the installed app.
-      - run: gradle :app:assembleDebug --no-daemon
-        env:
-          VC: ${{ 10000 + github.run_number }}
+      # NOTE: do NOT use a GitHub expression like ${{ 10000 + github.run_number }}
+      # for VC — GitHub rejects the '+' in that context ("Invalid workflow
+      # file", run 44249641613). Shell arithmetic does the same job.
+      - run: VC=$((10000 + GITHUB_RUN_NUMBER)) gradle :app:assembleDebug --no-daemon
       - uses: actions/upload-artifact@v4
         with:
           name: merlin-launcher-apk
