@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="shade_desc">Lets Merlin Launcher pull the notification shade down on swipe-down. No screen content is read.</string>
+</resources>

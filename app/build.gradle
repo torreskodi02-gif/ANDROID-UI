@@ -1,0 +1,50 @@
+// Merlin Launcher v1 — native Kotlin, programmatic Views, zero dependencies.
+// No Compose, no WebView, no extra libraries: stdlib + Android framework only.
+
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
+
+// versionCode source: CI sets VC = 10000 + run number; 1 for local builds.
+// NOTE: keep this as a separate variable. Writing
+//   versionCode (System.getenv('VC') ?: '1').toInteger()
+// inline breaks the build: Groovy parses it as
+//   (versionCode(...)).toInteger(), and versionCode is a setter that
+// returns void/null, so .toInteger() on null fails with "Value is null".
+def vc = System.getenv('VC') ?: '1'
+
+android {
+    namespace 'app.merlinlauncher'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'app.merlinlauncher'
+        minSdk 28
+        targetSdk 30
+        // versionCode comes from CI (VC = 10000 + run number); 1 for local builds.
+        versionCode vc.toInteger()
+        versionName '1.0.0'
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+}
+
+dependencies {
+    // Intentionally empty: stdlib + Android framework only.
+}
