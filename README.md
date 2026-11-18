@@ -8,6 +8,20 @@ target API 30 / min API 28 / compile API 34. Light and fast is the priority.
 Ideas borrowed from Nova, Lawnchair, Action, Niagara, Smart Launcher and
 Microsoft Launcher — the *ideas* only. No code, assets, or designs copied.
 
+## Download the APK
+
+**[Download merlin-launcher.apk (latest release)](https://github.com/torreskodi02-gif/ANDROID-UI/releases/download/latest/merlin-launcher.apk)**
+
+This repo is public — anyone can download it from this page. The link
+above starts working as soon as the first GitHub Actions build publishes
+the `latest` release (see "How the APK gets here" below). Until then, the
+v1.0.0 APK is also attached in the chat where it was built.
+
+Install: download the APK on your phone, tap it, allow install from
+unknown sources if asked, then press Home, pick Merlin Launcher, tap
+Always. Then set it as default: Settings > Apps > Default apps >
+Home app > Merlin Launcher.
+
 ## What v1 does
 
 - **Home, both styles, switchable anytime** — Grid mode (rows/cols from
@@ -60,20 +74,25 @@ Microsoft Launcher — the *ideas* only. No code, assets, or designs copied.
 Widget host · Shutters (widget preview on icon swipe) · Cover folders ·
 Auto-backup schedule · Real weather.
 
-## How Kodi builds it
+## How the APK gets here
 
-1. **Create the repo yourself** on github.com:
-   `torreskodi02-gif/merlin-launcher` (the GitHub App cannot create repos).
-2. Push the contents of this folder to `main` (Termux `git`, or the
-   GitHub mobile app).
-3. **Paste `build-apk.yml`** to `.github/workflows/build-apk.yml` via the
-   GitHub web editor — the GitHub App cannot push workflow files (403).
-4. Wait for the Actions run, then download
-   `releases/download/latest/merlin-launcher.apk` and install it.
-5. Set it as the default launcher: Settings > Apps > Default apps >
-   Home app > Merlin Launcher. Then grant, in Settings > Notifications
-   and Settings > Gestures, the three optional permissions above if you
-   want badges, shade pull-down, and double-tap lock.
+The repo is **public**: [torreskodi02-gif/ANDROID-UI](https://github.com/torreskodi02-gif/ANDROID-UI).
+The v1.0.0 code is already pushed to `main` (commit `fd61ddb6`).
+
+One step is still left, and only Kodi can do it — the GitHub App cannot
+push workflow files (403):
+
+1. **Paste `build-apk.yml`** to `.github/workflows/build-apk.yml` via the
+   GitHub web editor: open `build-apk.yml` in the repo, Raw, copy it,
+   then Add file > Create new file, name it
+   `.github/workflows/build-apk.yml`, paste, commit.
+2. That starts the Actions build. When it finishes, the APK is published
+   to the `latest` release and the Download link at the top of this page
+   works: `releases/download/latest/merlin-launcher.apk`.
+3. Install it and set it as the default launcher: Settings > Apps >
+   Default apps > Home app > Merlin Launcher. Then grant, in Settings >
+   Notifications and Settings > Gestures, the three optional permissions
+   above if you want badges, shade pull-down, and double-tap lock.
 
 ## Files
 
